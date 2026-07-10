@@ -1,0 +1,26 @@
+# End-to-end smoke test: tiny collection, mock ranker, lexical axioms only.
+# Validates the full pipeline in minutes with no large downloads.
+experiment: p0_smoke
+seed: 42
+primary_metric: fidelity
+
+dataset:
+  irds_id: beir/scifact/test   # 5k-doc collection; index is built locally in seconds
+  # (vaswani would be smaller still, but its host ir.dcs.gla.ac.uk is unreachable)
+
+first_stage:
+  retriever: bm25
+  pool_depth: 20
+
+pairs:
+  strategy: top_k_all_pairs
+  k: 5
+  max_queries: 5
+
+ranker:
+  backend: mock
+  order_swap: true
+
+axioms:
+  lexical: [TFC1, TFC3, M-TDC, LNC1, TF-LNC, PROX1, PROX2]
+  semantic: []
