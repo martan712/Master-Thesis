@@ -21,6 +21,7 @@ dependencies = [
     "pyyaml",
     "python-dotenv",
     "tqdm",
+    "en-core-web-sm",
 ]
 
 [project.optional-dependencies]
@@ -53,6 +54,7 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
+en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl" }
 
 [build-system]
 requires = ["uv_build>=0.7,<1.0"]
@@ -63,3 +65,7 @@ module-name = "axiomrank"
 
 [tool.ruff]
 line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["slow: starts the Terrier JVM / loads models (deselect with -m 'not slow')"]
