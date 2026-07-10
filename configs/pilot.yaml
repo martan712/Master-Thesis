@@ -1,0 +1,23 @@
+# Phase 0 pilot (docs/research-plan.md §5) — skeleton, to be filled in during the pilot.
+experiment: p0_pilot
+seed: 42
+primary_metric: fidelity   # fidelity | effectiveness — fix per experiment, plan §4.1
+
+dataset: msmarco-passage/trec-dl-2019/judged
+
+first_stage:
+  retriever: bm25
+  pool_depth: 100          # depth of the BM25 pool that pairs are sampled from
+
+pairs:
+  strategy: uniform        # sampling strategy over the pool; to settle in the pilot
+  per_query: 200
+
+ranker:                    # open PRP-style pairwise ranker; model chosen in the pilot
+  model: null
+  prompt_version: v0
+  order_swap: true         # query both (d1,d2) and (d2,d1) to measure position bias
+
+axioms:
+  lexical: [TFC1, TFC3, M-TDC, LNC1, LNC2, TF-LNC, PROX1, PROX2, PROX3, PROX4, PROX5]
+  semantic: [STMC1, STMC2]  # exact battery + similarity function are pilot decisions
