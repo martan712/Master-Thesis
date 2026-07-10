@@ -133,9 +133,14 @@ if prohibitive; the config makes them toggleable.
 - **Prebuilt index mismatch** (stemming/stopwords differ from what axioms assume):
   acceptable for the pilot; revisit if axiom preferences look degenerate.
 - **Glasgow hosts down.** `data.pyterrier.org` (prebuilt indices) and `ir.dcs.gla.ac.uk`
-  are currently unreachable from this network; the ir-datasets mirror is up. If the
-  prebuilt MS MARCO index stays unavailable, fall back to indexing locally overnight
-  (`index_path` in the config) — the pipeline is agnostic to where the index comes from.
+  are unreachable from this network; the ir-datasets mirror is up. Resolved: the official
+  prebuilt MS MARCO Terrier index is also published on HuggingFace
+  (`pyterrier/msmarco-passage.terrier`) and loaded via `pt.Artifact.from_hf` (the
+  `hf_artifact` config field). Local indexing (`index_path`) remains the last resort.
+- **Small pairwise models are position-biased.** `flan-t5-small` picked "Passage A" in
+  both presentation orders on an obvious sanity pair — consistent with PRP's finding that
+  small Flan-T5 variants cannot rank pairwise. The pilot model must pass an
+  order-swapped sanity check before the full run.
 - **Strict axiom preconditions.** In the SciFact smoke run TFC3/M-TDC/TF-LNC had zero
   coverage and LNC1 2% — their equal-length-style preconditions rarely hold on natural
   pairs. Expected from the literature, but if DL19 looks similar, Phase 1 must consider
