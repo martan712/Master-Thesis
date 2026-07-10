@@ -1,3 +1,31 @@
 # Local working instructions (not shared)
 CLAUDE.md
 AGENT.md
+
+# Environment (uv-managed)
+.venv/
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Large / regenerable artefacts — only the READMEs are tracked
+data/**
+!data/README.md
+results/**
+!results/README.md
+models/**
+!models/README.md
+
+# LaTeX build output
+thesis/*.aux
+thesis/*.bbl
+thesis/*.blg
+thesis/*.fdb_latexmk
+thesis/*.fls
+thesis/*.log
+thesis/*.out
+thesis/*.synctex.gz
+thesis/*.toc

@@ -1,0 +1,65 @@
+[project]
+name = "axiomrank"
+version = "0.1.0"
+description = "Axiomatic reduction of generative-LLM pairwise rankers (MSc thesis)"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # IR experimentation backbone (the pyterrier extra keeps python-terrier aligned)
+    "ir-axioms[pyterrier]>=1.1",
+    "ir-datasets>=0.5",
+    # analysis and modelling
+    "numpy",
+    "pandas",
+    "scipy",
+    "scikit-learn",
+    # plots and tables
+    "matplotlib",
+    "seaborn",
+    # storage and configuration
+    "pyarrow",
+    "pyyaml",
+    "python-dotenv",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+# The LLM ranker stack is heavy (multi-GB); install with `uv sync --extra llm`
+# only on the machine that actually runs the model.
+llm = [
+    "torch",
+    "transformers",
+    "accelerate",
+]
+# NOTE: ir-explain 0.1 is deliberately absent — it pins numpy==1.24.4, which is
+# unresolvable against this stack. If it is ever needed, run it in a separate
+# throwaway uv project; ir_axioms is the experimental backbone here.
+
+[dependency-groups]
+dev = [
+    "jupyterlab",
+    "ipykernel",
+    "pytest",
+    "ruff",
+]
+
+# This machine has no NVIDIA GPU: keep torch on CPU wheels (saves ~2.3 GB of CUDA
+# libraries). If the LLM ranker moves to a CUDA machine, delete these two blocks and
+# re-run `uv lock`.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[build-system]
+requires = ["uv_build>=0.7,<1.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "axiomrank"
+
+[tool.ruff]
+line-length = 100
