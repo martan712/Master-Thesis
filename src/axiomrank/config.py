@@ -10,9 +10,10 @@ import yaml
 @dataclass
 class DatasetConfig:
     irds_id: str
+    hf_artifact: str | None = None  # prebuilt index on HuggingFace (pt.Artifact.from_hf)
     terrier_dataset: str | None = None
     index_variant: str | None = None
-    index_path: str | None = None  # local index directory; overrides the prebuilt index
+    index_path: str | None = None  # local index directory; overrides everything else
 
 
 @dataclass

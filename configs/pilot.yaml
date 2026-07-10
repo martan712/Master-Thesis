@@ -5,8 +5,9 @@ primary_metric: fidelity   # the pilot characterises the model, not the qrels (p
 
 dataset:
   irds_id: msmarco-passage/trec-dl-2019/judged
-  terrier_dataset: msmarco_passage
-  index_variant: terrier_stemmed   # prebuilt index (~2 GB one-time download)
+  hf_artifact: pyterrier/msmarco-passage.terrier   # prebuilt index, one-time download
+  # terrier_dataset: msmarco_passage + index_variant: terrier_stemmed would use the
+  # classic Terrier Data Repository (data.pyterrier.org), unreachable from this network
 
 first_stage:
   retriever: bm25
