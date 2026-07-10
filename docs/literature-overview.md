@@ -200,8 +200,11 @@ attribution, where RankingSHAP attributes a ranking to input features in a listw
 [34] and LiEGe generates listwise aspect-based explanations [35]; both offer a contrast to
 the kind of explanation an axiomatic account provides. The second is the tooling that makes
 axiomatic experimentation practical, namely `ir_axioms`, which brings axioms into PyTerrier
-and Pyserini [19], and its broader successor `ir_explain` [36], either of which can serve
-as an experimental backbone.
+and Pyserini [19] and remains under active development, and the independently developed,
+broader `ir_explain` toolkit [36], which reimplements the classical axioms and adds
+pointwise and listwise explainers, but whose only release (0.1) is frozen to a 2024
+dependency stack. We use `ir_axioms` as the experimental backbone; `ir_explain` becomes
+relevant only if we later compare against attribution-style explanations.
 
 Most of the directly relevant recent activity comes from a single, fast-moving group around
 Chen and Eickhoff, which has produced a mechanistic-interpretability tool for IR [37], a set
