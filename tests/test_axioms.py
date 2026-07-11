@@ -49,3 +49,26 @@ def test_tfc1_neutral_on_equal_term_frequency():
     pool, pairs = make_frames("cat", "cat dog bird fish", "cat fish bird dog")
     result = axiom_preferences(pool, pairs, ["TFC1"])
     assert result["TFC1"].iloc[0] == 0
+
+
+def test_prox2_prefers_earlier_query_terms():
+    # Guards the sign convention: ir_axioms 1.1.2's batch preferences() override has
+    # its strictly_greater arguments swapped vs its own pairwise preference(), so the
+    # old transformer-based stage produced sign-flipped PROX2 values.
+    pool, pairs = make_frames(
+        "cat dog",
+        "cat dog house tree fish bird",  # query terms at positions 0, 1
+        "house tree fish bird cat dog",  # query terms at positions 4, 5
+    )
+    result = axiom_preferences(pool, pairs, ["PROX2"])
+    assert result["PROX2"].iloc[0] == 1
+
+
+def test_prox1_prefers_query_terms_closer_together():
+    pool, pairs = make_frames(
+        "cat dog",
+        "cat dog house tree fish bird",  # adjacent query terms
+        "cat house tree fish bird dog",  # query terms far apart
+    )
+    result = axiom_preferences(pool, pairs, ["PROX1"])
+    assert result["PROX1"].iloc[0] == 1

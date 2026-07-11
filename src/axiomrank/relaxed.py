@@ -1,4 +1,5 @@
-"""Relaxed-precondition variants of strict ir_axioms axioms (phase1-implementation.md §4).
+"""Relaxed-precondition and determinism-pinned variants of ir_axioms axioms
+(phase1-implementation.md §4).
 
 TF-LNC and M-TDC have hardcoded preconditions in ir_axioms 1.1.2 (exact non-query
 length equality; exactly equal total query-term mass), which leaves them with ~0-5%
@@ -17,10 +18,11 @@ starts the Terrier JVM.
 from dataclasses import dataclass
 from itertools import combinations
 from math import isclose
-from typing import AbstractSet, Collection, Mapping
+from typing import AbstractSet, Collection, Mapping, Sequence
 
 from injector import NoInject, inject
 from ir_axioms.axiom.retrieval.length_norm import TfLncAxiom
+from ir_axioms.axiom.retrieval.proximity import Prox1Axiom, _same_query_term_subset
 from ir_axioms.axiom.retrieval.term_frequency import ModifiedTdcAxiom
 from ir_axioms.axiom.utils import strictly_greater
 from ir_axioms.model import Document, Preference, Query
@@ -158,6 +160,77 @@ class RelaxedMTdcAxiom(ModifiedTdcAxiom):
         return strictly_greater(score1, score2)
 
 
+def _average_between_query_terms_deterministic(
+    query_terms: AbstractSet[str], document_terms: Sequence[str]
+) -> float:
+    """Upstream's between-terms average with a pinned term-pair iteration order."""
+    query_term_pairs = list(combinations(sorted(query_terms), 2))
+    if len(query_term_pairs) == 0:
+        # Single-term query.
+        return 0
+
+    number_words = 0
+    for term1, term2 in query_term_pairs:
+        element1_position = document_terms.index(term1)
+        element2_position = document_terms.index(term2)
+        number_words += abs(element1_position - element2_position - 1)
+    return number_words / len(query_term_pairs)
+
+
+@inject
+@dataclass(frozen=True, kw_only=True)
+class DeterministicProx1Axiom(Prox1Axiom):
+    """PROX1 with the query-term-pair iteration order pinned.
+
+    Upstream iterates `combinations()` of a *set* of query terms, but its distance
+    `abs(pos1 - pos2 - 1)` is asymmetric in the pair order, so PROX1's output depends
+    on the process hash seed (~3% of DL19 top-10 pairs flip between identical runs).
+    Sorting the terms first keeps upstream's formula verbatim (asymmetry included)
+    while making runs reproducible. Pinned to ir_axioms 1.1.2; re-check on upgrade.
+    """
+
+    def preference(
+        self,
+        input: Query,
+        output1: Document,
+        output2: Document,
+    ) -> Preference:
+        query_unique_terms = self.term_tokenizer.unique_terms(
+            self.text_contents.contents(input),
+        )
+        document1_terms = self.term_tokenizer.terms(
+            self.text_contents.contents(output1),
+        )
+        document1_unique_terms = set(document1_terms)
+        document2_terms = self.term_tokenizer.terms(
+            self.text_contents.contents(output2),
+        )
+        document2_unique_terms = set(document2_terms)
+
+        if not _same_query_term_subset(
+            query_terms=query_unique_terms,
+            document1_terms=document1_unique_terms,
+            document2_terms=document2_unique_terms,
+        ):
+            return 0
+
+        overlapping_terms = (
+            query_unique_terms & document1_unique_terms & document2_unique_terms
+        )
+
+        average1 = _average_between_query_terms_deterministic(
+            overlapping_terms, document1_terms
+        )
+        average2 = _average_between_query_terms_deterministic(
+            overlapping_terms, document2_terms
+        )
+
+        return strictly_greater(average2, average1)
+
+
 # Factories mirroring ir_axioms' naming convention, resolvable from axiom configs.
+# PROX1 shadows upstream's factory (axiomrank.axioms resolves relaxed first) so every
+# config gets the reproducible variant.
 TF_LNC_R = lazy_inject(RelaxedTfLncAxiom)
 M_TDC_R = lazy_inject(RelaxedMTdcAxiom)
+PROX1 = lazy_inject(DeterministicProx1Axiom)

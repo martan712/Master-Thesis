@@ -10,6 +10,8 @@ ir_axioms is imported lazily, after cache configuration, because importing it st
 the Terrier JVM.
 """
 
+from functools import cached_property, lru_cache
+
 import pandas as pd
 
 from axiomrank import paths
@@ -37,6 +39,26 @@ def _factory(name: str):
     if factory is None:
         raise ValueError(f"Unknown axiom: {name}")
     return factory
+
+
+def _cached_spacy_tokenizer():
+    """ir_axioms' default tokenizer with tokenisation memoised per text. Axioms
+    otherwise re-run the full spaCy pipeline on the same document for every
+    axiom x pair, which dominates the axiom stage (~0.6 s/pair measured). The full
+    en_core_web_sm pipeline is kept — excluding parser/NER shifts lemmas on ~0.2%
+    of texts, and bit-identical tokenisation is worth more than the extra 2-3x."""
+    from ir_axioms.tools.tokenizer.spacy import SpacyTermTokenizer
+
+    class CachedSpacyTermTokenizer(SpacyTermTokenizer):
+        @cached_property
+        def _terms_cached(self):
+            base = super().terms
+            return lru_cache(maxsize=1 << 18)(lambda text: tuple(base(text)))
+
+        def terms(self, text: str):
+            return self._terms_cached(text)
+
+    return CachedSpacyTermTokenizer()
 
 
 def _term_similarity(kind: str):
@@ -72,14 +94,22 @@ def build_axioms(specs: list[AxiomSpec | str], index_location=None) -> list:
     """
     paths.configure_caches()
 
+    from ir_axioms.dependency_injection import injector
+    from ir_axioms.tools.tokenizer.base import TermTokenizer
+    from ir_axioms.utils.injection import reset_binding_scopes
+
+    injector.binder.bind(TermTokenizer, to=_cached_spacy_tokenizer())
+
     if index_location is not None:
-        from ir_axioms.dependency_injection import injector
         from ir_axioms.tools import TerrierIndexStatistics
         from ir_axioms.tools.index_statistics.base import IndexStatistics
 
         injector.binder.bind(
             IndexStatistics, to=TerrierIndexStatistics(index_location=index_location)
         )
+
+    # Drop any singletons already built against the previous bindings.
+    reset_binding_scopes(injector)
 
     return [_instantiate(_coerce(spec)) for spec in specs]
 
@@ -94,36 +124,43 @@ def axiom_preferences(
 
     Returns one row per pair: qid, doc_id_1, doc_id_2 plus one column per axiom spec
     (named by its alias) with a value in {-1, 0, +1} (+1 = axiom prefers doc_id_1).
-    Uses ir_axioms' AxiomaticPreferences transformer, restricted per query to the
-    documents that actually occur in the sampled pairs.
+    Evaluates each axiom on exactly the sampled pairs. (ir_axioms' AxiomaticPreferences
+    transformer instead crosses every document a query's pairs touch — ~40x the work
+    on the uniform depth-100 cells — for identical values on the pairs that are kept.)
     """
     paths.configure_caches()
-    from ir_axioms.integrations.pyterrier import AxiomaticPreferences
+    from ir_axioms.model import Document, Query
+    from tqdm.auto import tqdm
 
     specs = [_coerce(spec) for spec in specs]
     axioms = build_axioms(specs, index_location=index_location)
     names = [spec.column for spec in specs]
-    transformer = AxiomaticPreferences(axioms=axioms, axiom_names=names, text_field="text")
 
-    used = pd.concat(
-        [
-            pairs[["qid", "doc_id_1"]].rename(columns={"doc_id_1": "docno"}),
-            pairs[["qid", "doc_id_2"]].rename(columns={"doc_id_2": "docno"}),
-        ]
-    ).drop_duplicates()
-    subpool = pool.merge(used, on=["qid", "docno"])
+    # rank/score ride along on the Document objects, as on the old pool-crossing path.
+    meta = pool.set_index(["qid", "docno"])[["rank", "score"]]
 
-    crossed = transformer.transform(subpool)
-    crossed = crossed.rename(columns={"docno_a": "doc_id_1", "docno_b": "doc_id_2"})
-    pref_cols = {f"{n}_preference": n for n in names}
-    crossed = crossed.rename(columns=pref_cols)
+    def document(qid, docno, text) -> Document:
+        row = meta.loc[(qid, docno)]
+        return Document(
+            id=str(docno), text=str(text), score=float(row["score"]), rank=int(row["rank"])
+        )
 
-    result = pairs[["qid", "doc_id_1", "doc_id_2"]].merge(
-        crossed[["qid", "doc_id_1", "doc_id_2", *names]],
-        on=["qid", "doc_id_1", "doc_id_2"],
-        how="left",
+    records = []
+    progress = tqdm(
+        pairs.itertuples(index=False),
+        total=len(pairs),
+        desc=f"axiom preferences ({len(names)} axioms)",
+        unit="pair",
     )
-    for n in names:
-        # Axioms return floats; clamp to sign so downstream code sees {-1, 0, 1}.
-        result[n] = result[n].fillna(0).apply(lambda v: (v > 0) - (v < 0))
-    return result
+    for row in progress:
+        query = Query(id=str(row.qid), text=str(row.query))
+        doc_1 = document(row.qid, row.doc_id_1, row.text_1)
+        doc_2 = document(row.qid, row.doc_id_2, row.text_2)
+        record = {"qid": row.qid, "doc_id_1": row.doc_id_1, "doc_id_2": row.doc_id_2}
+        for name, axiom in zip(names, axioms):
+            # Axioms return floats; clamp to sign so downstream code sees {-1, 0, 1}.
+            value = axiom.preference(input=query, output1=doc_1, output2=doc_2)
+            record[name] = int(value > 0) - int(value < 0)
+        records.append(record)
+
+    return pd.DataFrame(records, columns=["qid", "doc_id_1", "doc_id_2", *names])
