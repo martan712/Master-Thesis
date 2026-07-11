@@ -22,6 +22,7 @@ dependencies = [
     "python-dotenv",
     "tqdm",
     "en-core-web-sm",
+    "openai>=2.45.0",
 ]
 
 [project.optional-dependencies]

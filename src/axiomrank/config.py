@@ -32,12 +32,14 @@ class PairsConfig:
 
 @dataclass
 class RankerConfig:
-    backend: str = "mock"  # mock | hf
+    backend: str = "mock"  # mock | hf | openai
     model: str | None = None
     prompt_version: str = "v0"
     order_swap: bool = True
     max_chars: int = 2000  # passage text truncation before prompting
     batch_flush: int = 50  # verdicts per store flush
+    base_url: str | None = None  # openai backend: OpenAI-compatible endpoint
+    extra_body: dict | None = None  # openai backend: extra request fields (vLLM options)
 
 
 @dataclass
