@@ -29,7 +29,8 @@ def _index_ref(pt, cfg: DatasetConfig):
     if cfg.hf_artifact:
         # Official prebuilt indices mirrored on HuggingFace (the classic Terrier Data
         # Repository host data.pyterrier.org is not reachable from every network).
-        return pt.Artifact.from_hf(cfg.hf_artifact).path
+        # .path is a pathlib.Path; Terrier's Retriever only accepts index-ref strings
+        return str(pt.Artifact.from_hf(cfg.hf_artifact).path)
     if cfg.terrier_dataset:
         dataset = pt.get_dataset(cfg.terrier_dataset)
         return dataset.get_index(cfg.index_variant) if cfg.index_variant else dataset.get_index()
