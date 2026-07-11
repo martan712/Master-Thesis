@@ -19,7 +19,7 @@ pairs:
 
 ranker:
   backend: openai
-  model: Qwen3.6-35B-A3B          # must match the id the server reports at /v1/models
+  model: models/qwen3.6-35B-A3B-AWQ   # the id the server reports at /v1/models
   base_url: http://localhost:9086/v1
   prompt_version: v1              # chat-style PRP prompt, single-letter answer
   order_swap: true
