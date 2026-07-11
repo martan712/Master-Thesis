@@ -301,6 +301,20 @@ coverage over the 1,900 pairs:
   (margin-parameterised) variants or accept them as low-coverage curiosities. The
   usable lexical core is TFC1 + PROX1–PROX5 (13–76% coverage); 94.6% of pairs have at
   least one non-neutral axiom.
+- **Jointly, the lexical battery explains almost none of the top-10 decisions.**
+  Predicting each model's decisive verdicts from all ten axiom preferences at once:
+  a majority vote of the axioms scores *below* the majority-class baseline (0.488 vs
+  0.573 for Qwen; 0.470 vs 0.600 for flan-t5-large), and a cross-validated logistic
+  model — free to invert anti-agreeing axioms — reaches only 0.601/0.611, i.e. ~1–3
+  points over the base rate. The fitted structure replicates across both models
+  (M-TDC strongly positive, PROX2 negative), so the battery fails in a stable,
+  model-independent way — weak signal, not noise.
+- **Top-10 pairs are the decision-relevant condition, and that is where the axioms
+  fail.** Both pool members of a top-10 pair are already lexically strong, so classical
+  axioms mostly re-explain what BM25 decided; the marginal value the LLM adds over
+  BM25 — the reordering one deploys a reranker *for* — sits almost entirely in the
+  residual. Low agreement on easy-to-explain pairs would be a battery bug; low
+  agreement on top-10 pairs is the phenomenon itself.
 - **Model confidence and axiom coverage are orthogonal** (corr 0.004 / −0.131): axioms
   do not simply fire on the pairs the model is sure about, so coverage-weighted fidelity
   and confidence-stratified analyses (RQ6) measure genuinely different things.
@@ -323,3 +337,14 @@ coverage over the 1,900 pairs:
    after comparing WordNet similarity vs the 7.24 GB fastText download.
 4. **Battery for RQ1** starts from TFC1 + PROX1–5 (+LNC1/TF-LNC/M-TDC as low-coverage
    extras); relaxed preconditions are a Phase 1 work item.
+5. **Top-10 all-pairs stays the primary condition throughout; `uniform` depth-100
+   sampling is a validity control, not a rescue.** The expected gradient — high axiom
+   agreement on wide-gap pairs, near-chance on top-10 — would demonstrate the pipeline
+   is sound and the top-10 failure is a property of LLM reranking, not an artefact
+   (agreement vs. rank/score gap is the candidate signature figure for RQ1). This
+   shifts weight to the second half of the thesis question: characterising the
+   residual (RQ3) and finding new axioms that discriminate between lexically close
+   documents (RQ4) take priority over tuning the classical battery; relaxed
+   preconditions matter chiefly because coverage on hard pairs is what limits the
+   axioms that do show signal (M-TDC). The joint-fit analysis above graduates into
+   `experiments/rq1_lexical_agreement/` as its first script.

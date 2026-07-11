@@ -96,6 +96,21 @@ preference dataset for the whole thesis. For the axioms we use the battery descr
 literature overview, implemented through `ir_axioms` [19] and `ir_explain` [36], where each
 axiom returns a preference for one document, the other, or neither.
 
+One sampling decision from the Phase 0 pilot is recorded here because it shapes every
+question below (numbers in `phase0-plan.md` §9). Pairs sampled among the BM25 top-10 are
+the *primary* condition throughout the thesis: they are where reranking decisions are
+actually made, and they are precisely where the pilot found the classical lexical battery
+to explain almost nothing — jointly about one to three accuracy points over the base rate,
+with a naive axiom majority vote scoring below it. Both pool members of such a pair are
+already lexically strong, so classical axioms largely re-explain what BM25 decided, and
+the marginal value the LLM adds sits in the residual. Wider-gap pairs (`uniform` sampling
+from the depth-100 pool) therefore serve as a validity control rather than a headline
+condition: the expected gradient — high agreement on wide-gap pairs, near-chance on
+top-10 — would show the pipeline is sound and the top-10 failure is a property of LLM
+reranking itself. Practically, this shifts the weight of the thesis towards RQ3 and RQ4,
+and makes agreement as a function of the rank or score gap the candidate signature figure
+for RQ1.
+
 We rely on a small set of metrics throughout. Agreement is the fraction of pairs on which
 an axiom and the model give the same verdict, setting aside the pairs the axiom calls
 neutral. Predictive power is the accuracy or area under the curve of a model that predicts
@@ -122,7 +137,9 @@ report both how much of the behaviour it captures and what the mispredicted pair
 common. The analysis of those pairs is what decides the emphasis of RQ4: a rich and
 systematic residual points towards a new-axiom study, whereas a thin residual would tell us
 that the model is largely axiom-reducible and would shift the weight of the thesis towards
-RQ5. In RQ4 we take the systematic residual, try to characterise it, for instance as
+RQ5. The Phase 0 pilot already leans strongly towards the first branch — on top-10 pairs
+the residual is nearly everything, and it is stable across two very different models
+(`phase0-plan.md` §9.3) — so RQ4 should be planned as the main act, not the contingency. In RQ4 we take the systematic residual, try to characterise it, for instance as
 contextual behaviour, a form of semantic mismatch, or an effect that depends on the other
 documents present, and formalise it as one or more new axioms, which we then add to the
 re-ranker and evaluate against the classical set with nDCG. If the residual turns out to be
