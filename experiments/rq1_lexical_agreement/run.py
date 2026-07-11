@@ -17,7 +17,7 @@ import argparse
 
 from axiomrank.analysis import STRICT_CORE
 from axiomrank.config import load_config
-from axiomrank.measurement import measure_cell
+from axiomrank.pipeline import measure_cell
 
 
 def main() -> None:

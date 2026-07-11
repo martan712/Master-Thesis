@@ -1,64 +1,16 @@
-"""Shared experiment stages: cached pool/pair building and verdict collection.
+"""Collecting model verdicts for a pair sample, against the preference store.
 
-Factored out of experiments/p0_pilot/run.py so every phase's runner is a thin recipe.
-Stage outputs cache as Parquet under data/processed/<experiment>[/<variant>]/; model
-verdicts live in the append-only preference store and are never recomputed (lookup
-before call), regardless of any --refresh flag.
+Model verdicts live in the append-only preference store and are never recomputed
+(lookup before call), regardless of any refresh flag.
 """
 
-import os
 import time
-from pathlib import Path
 
 import pandas as pd
 
-from axiomrank import paths
-from axiomrank.config import ExperimentConfig, RankerConfig
-from axiomrank.datasets import bm25_pool
-from axiomrank.pairs import sample_pairs
-from axiomrank.preferences import PreferenceStore, new_row
+from axiomrank.config import RankerConfig
+from axiomrank.data.preferences import PreferenceStore, new_row
 from axiomrank.rankers import make_ranker
-
-
-def processed_dir(cfg: ExperimentConfig) -> Path:
-    base = paths.PROCESSED_DIR / cfg.experiment
-    return base / cfg.variant if cfg.variant else base
-
-
-def output_dir(cfg: ExperimentConfig) -> Path:
-    base = paths.results_dir(cfg.experiment)
-    out = base / cfg.variant if cfg.variant else base
-    out.mkdir(parents=True, exist_ok=True)
-    return out
-
-
-def cached_frame(path: Path, refresh: bool, compute) -> pd.DataFrame:
-    if path.exists() and not refresh:
-        return pd.read_parquet(path)
-    df = compute()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Write-then-rename so a parallel run of the same stage (the qwen and flan
-    # runbooks share the model-independent stages) can never leave a torn file.
-    tmp = path.with_name(f"{path.name}.tmp-{os.getpid()}")
-    df.to_parquet(tmp, index=False)
-    os.replace(tmp, path)
-    return df
-
-
-def build_pool(cfg: ExperimentConfig, refresh: bool = False) -> pd.DataFrame:
-    return cached_frame(
-        processed_dir(cfg) / "pool.parquet",
-        refresh,
-        lambda: bm25_pool(cfg.dataset, cfg.first_stage),
-    )
-
-
-def build_pairs(cfg: ExperimentConfig, pool: pd.DataFrame, refresh: bool = False) -> pd.DataFrame:
-    return cached_frame(
-        processed_dir(cfg) / "pairs.parquet",
-        refresh,
-        lambda: sample_pairs(pool, cfg.pairs, cfg.seed),
-    )
 
 
 def get_all_orders(ranker_cfg: RankerConfig, row):

@@ -12,6 +12,8 @@ import pandas as pd
 
 from axiomrank.config import PairsConfig
 
+# The frame every downstream stage (verdict collection, axiom computation) consumes.
+
 PAIR_COLUMNS = ["qid", "query", "doc_id_1", "doc_id_2", "text_1", "text_2"]
 
 

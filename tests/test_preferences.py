@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from axiomrank.preferences import ALL_COLUMNS, PreferenceStore, new_row
+from axiomrank.data.preferences import ALL_COLUMNS, PreferenceStore, new_row
 
 
 def row(query_id="q1", doc_a="d1", doc_b="d2", verdict="a", model="m"):

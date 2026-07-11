@@ -25,6 +25,19 @@ are created on demand by `axiomrank.paths`. The single most valuable artefact is
 `data/preferences/`, the cached LLM pairwise-verdict dataset that the whole thesis reuses
 — **back it up** (it is expensive to recompute) but do not commit it.
 
+Inside the package, foundations sit at the top level and everything else is grouped by
+function:
+
+| Subpackage / module | Purpose |
+|---|---|
+| `paths.py`, `config.py` | Path/cache resolution; typed YAML experiment configs |
+| `data/` | First-stage retrieval (BM25 pools, indices), pair sampling, the append-only verdict store |
+| `rankers/` | Pairwise LLM ranker backends (mock, HF transformers, OpenAI-compatible) |
+| `axioms/` | Axiom registry and instantiation, per-pair preference computation, relaxed variants |
+| `analysis/` | Verdict collapsing, agreement (+ bootstrap CIs), transitivity, joint fits, gap gradient, figures |
+| `ranking/` | Copeland aggregation of pair verdicts (= PRP-allpair) and ir_measures evaluation |
+| `pipeline/` | Cached experiment stages, verdict collection against the store, shared measurement recipes |
+
 ## Environment
 
 The environment is managed **exclusively with [uv](https://docs.astral.sh/uv/)** — no

@@ -12,7 +12,7 @@ Usage:
 import argparse
 
 from axiomrank.config import load_config
-from axiomrank.measurement import measure_cell
+from axiomrank.pipeline import measure_cell
 
 
 def main() -> None:

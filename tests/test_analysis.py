@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from axiomrank import analysis
+from axiomrank.analysis.gap import _gap_bins
 
 
 def test_agreement_point_estimates_match_definitions():
@@ -77,12 +78,12 @@ def test_attach_rank_gap_from_pool():
 
 def test_gap_bins_integer_for_small_ranges():
     gaps = pd.Series([1, 3, 9, 15])
-    assert analysis._gap_bins(gaps).tolist() == [1, 3, 9, 15]
+    assert _gap_bins(gaps).tolist() == [1, 3, 9, 15]
 
 
 def test_gap_bins_quantile_for_wide_ranges():
     gaps = pd.Series(range(1, 101))
-    bins = analysis._gap_bins(gaps)
+    bins = _gap_bins(gaps)
     assert bins.nunique() == 10
     assert bins.value_counts().eq(10).all()  # deciles of a uniform range
     assert bins.max() == 100  # labelled by the bin's upper gap edge

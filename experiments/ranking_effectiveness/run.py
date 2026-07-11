@@ -22,9 +22,9 @@ derived stages (pool, pairs). --only-model substring-filters the configured rank
 import argparse
 import json
 
-from axiomrank import agreement, pipeline, ranking
+from axiomrank import analysis, pipeline, ranking
 from axiomrank.config import dump_config, load_config
-from axiomrank.preferences import PreferenceStore
+from axiomrank.data.preferences import PreferenceStore
 
 
 def main() -> None:
@@ -69,12 +69,12 @@ def main() -> None:
         store_df = pipeline.collect_verdicts(
             cfg.dataset.irds_id, ranker_cfg, pairs, PreferenceStore()
         )
-        verdicts = agreement.model_pair_verdicts(store_df)
+        verdicts = analysis.model_pair_verdicts(store_df)
         reranked_run = ranking.copeland_ranking(verdicts, pool)
         reranked_perq = ranking.evaluate_run(reranked_run, cfg.dataset.irds_id, metrics)
 
         per_query, summary = ranking.compare_runs(baseline_perq, reranked_perq, metrics)
-        consistency = agreement.consistency_stats(verdicts)
+        consistency = analysis.consistency_stats(verdicts)
 
         metrics_dir = out / "metrics" / model_name.replace("/", "__")
         metrics_dir.mkdir(parents=True, exist_ok=True)

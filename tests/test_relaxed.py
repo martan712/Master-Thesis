@@ -115,7 +115,7 @@ def _mtdc_preference(axiom_cls, tf_doc1: dict, tf_doc2: dict, **kwargs):
 def test_m_tdc_relaxed_fires_where_strict_gate_rejects():
     from ir_axioms.axiom.retrieval.term_frequency import ModifiedTdcAxiom
 
-    from axiomrank.relaxed import RelaxedMTdcAxiom
+    from axiomrank.axioms.relaxed import RelaxedMTdcAxiom
 
     tf_doc1 = {"rare": 2, "common": 1}  # total query-term mass 3
     tf_doc2 = {"rare": 1, "common": 1}  # mass 2: strict equal-mass gate rejects
@@ -128,7 +128,7 @@ def test_m_tdc_relaxed_fires_where_strict_gate_rejects():
 def test_m_tdc_strict_and_relaxed_agree_on_equal_mass():
     from ir_axioms.axiom.retrieval.term_frequency import ModifiedTdcAxiom
 
-    from axiomrank.relaxed import RelaxedMTdcAxiom
+    from axiomrank.axioms.relaxed import RelaxedMTdcAxiom
 
     tf_doc1 = {"rare": 2, "common": 1}  # equal mass, swapped distribution: strict fires
     tf_doc2 = {"rare": 1, "common": 2}

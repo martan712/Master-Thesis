@@ -1,12 +1,12 @@
 import pandas as pd
 
-from axiomrank.agreement import (
+from axiomrank.analysis import (
     agreement_table,
     consistency_stats,
     model_pair_verdicts,
     nontransitivity_rate,
 )
-from axiomrank.preferences import new_row
+from axiomrank.data.preferences import new_row
 
 
 def presentation(query_id, doc_a, doc_b, verdict):

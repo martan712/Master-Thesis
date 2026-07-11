@@ -1,7 +1,7 @@
 import pandas as pd
 
 from axiomrank.config import PairsConfig
-from axiomrank.pairs import sample_pairs
+from axiomrank.data.pairs import sample_pairs
 
 
 def make_pool(n_queries=2, n_docs=6) -> pd.DataFrame:

@@ -12,20 +12,21 @@ executed the DL19 pilot.
 
 ### 1.1 Components
 
-Seven components, all in `src/axiomrank/`, orchestrated by `experiments/p0_pilot/run.py`:
+Seven components, all in `src/axiomrank/`, orchestrated by `experiments/p0_pilot/run.py`
+(paths reflect the current subpackage layout; Phase 0 built these as flat modules):
 
 ```
-config.py        YAML → typed config (dataset, sampling, ranker, axioms, output)
-datasets.py      topics + BM25 pooling (PyTerrier, prebuilt Terrier indices), doc text
-pairs.py         pair sampling from the pool (canonical unordered pairs)
-rankers/base.py  PairwiseRanker interface + PairVerdict
-rankers/mock.py  deterministic hash-scored mock (transitive by construction)
-rankers/hf.py    transformers backend, PRP prompt v0, label-likelihood scoring
-rankers/openai_api.py  OpenAI-compatible endpoint backend (vLLM), chat prompt v1,
-                 verdicts from single-token A/B logprobs
-preferences.py   append-only Parquet store, keyed, dedup on read, lookup before call
-axioms.py        ir_axioms battery wrapper (AxiomaticPreferences transformer)
-agreement.py     canonical verdicts, per-axiom agreement, consistency, transitivity
+config.py             YAML → typed config (dataset, sampling, ranker, axioms, output)
+data/retrieval.py     topics + BM25 pooling (PyTerrier, prebuilt Terrier indices), doc text
+data/pairs.py         pair sampling from the pool (canonical unordered pairs)
+rankers/base.py       PairwiseRanker interface + PairVerdict
+rankers/mock.py       deterministic hash-scored mock (transitive by construction)
+rankers/hf.py         transformers backend, PRP prompt v0, label-likelihood scoring
+rankers/openai_api.py OpenAI-compatible endpoint backend (vLLM), chat prompt v1,
+                      verdicts from single-token A/B logprobs
+data/preferences.py   append-only Parquet store, keyed, dedup on read, lookup before call
+axioms/               ir_axioms battery wrapper (registry + per-pair preferences)
+analysis/             canonical verdicts, per-axiom agreement, consistency, transitivity
 ```
 
 Model candidates are vetted by `scripts/sanity_gate.py` (the mandatory 4-way order-swap
@@ -64,11 +65,12 @@ files; dedup keeps the first write. The store is the thesis's reusable core arte
 ## 4. Work breakdown
 
 1. `config.py` + updated `configs/` (pilot, smoke) — the schema in `phase0-design.md` §3.
-2. `datasets.py` + `pairs.py` + unit tests (canonicalisation, determinism, counts).
-3. `preferences.py` + tests (append/dedup/lookup round-trip).
+2. `data/retrieval.py` + `data/pairs.py` + unit tests (canonicalisation, determinism, counts).
+3. `data/preferences.py` + tests (append/dedup/lookup round-trip).
 4. `rankers/` (base, mock, hf) + prompt v0; mock-based tests.
-5. `axioms.py` + synthetic sanity tests.
-6. `agreement.py` + hand-computable test case (incl. an inconsistent pair and a cycle).
+5. `axioms/` + synthetic sanity tests.
+6. `analysis/` (verdicts, agreement, transitivity) + hand-computable test case (incl. an
+   inconsistent pair and a cycle).
 7. `experiments/p0_pilot/run.py` orchestration; smoke run (vaswani+mock); HF validation;
    then the DL19 run.
 

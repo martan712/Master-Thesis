@@ -12,11 +12,9 @@ recomputed regardless of --refresh.
 import argparse
 import json
 
-from axiomrank import agreement, pipeline
-from axiomrank.axioms import axiom_preferences
+from axiomrank import analysis, pipeline
 from axiomrank.config import dump_config, load_config
-from axiomrank.datasets import index_ref
-from axiomrank.preferences import PreferenceStore
+from axiomrank.data.preferences import PreferenceStore
 
 
 def main() -> None:
@@ -26,7 +24,6 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = load_config(args.config)
-    processed = pipeline.processed_dir(cfg)
     out = pipeline.output_dir(cfg)
     dump_config(cfg, out / "config.yaml")
 
@@ -45,19 +42,13 @@ def main() -> None:
 
     print("[4/4] axiom preferences + agreement")
     names = [s.column for s in cfg.axioms.specs]
-    axiom_df = pipeline.cached_frame(
-        processed / "axiom_prefs.parquet",
-        args.refresh,
-        lambda: axiom_preferences(
-            pool, pairs, cfg.axioms.specs, index_location=index_ref(cfg.dataset)
-        ),
-    )
+    axiom_df = pipeline.build_axiom_prefs(cfg, pool, pairs, args.refresh)
 
-    verdicts = agreement.model_pair_verdicts(store_df)
-    table = agreement.agreement_table(axiom_df, verdicts, names)
+    verdicts = analysis.model_pair_verdicts(store_df)
+    table = analysis.agreement_table(axiom_df, verdicts, names)
     stats = {
-        **agreement.consistency_stats(verdicts),
-        **agreement.nontransitivity_rate(verdicts),
+        **analysis.consistency_stats(verdicts),
+        **analysis.nontransitivity_rate(verdicts),
         "mean_latency_ms": float(store_df["latency_ms"].mean()),
         "model": store_df["model"].iloc[0] if len(store_df) else None,
     }

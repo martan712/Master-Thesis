@@ -44,7 +44,7 @@ class RankerConfig:
 
 @dataclass
 class AxiomSpec:
-    """One axiom column: an ir_axioms (or axiomrank.relaxed) factory name plus params.
+    """One axiom column: an ir_axioms (or axiomrank.axioms.relaxed) factory name plus params.
 
     `alias` names the output column (defaults to `name`), so the same axiom can appear
     several times at different parameter settings, e.g. TFC1 with a relaxed length

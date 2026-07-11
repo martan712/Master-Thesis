@@ -40,24 +40,27 @@ New and changed code, following the Phase 0 layout (shared logic in `src/axiomra
 experiment scripts as recipes):
 
 ```
-config.py        + axiom specs with params ({name, alias, params}), variant field,
-                   rankers list (one config drives both models); Phase 0 configs stay valid
-axioms.py        + spec resolution: margin params, LEN precondition margins,
-                   similarity backend binding, alias-aware battery construction
-relaxed.py       NEW: RelaxedTfLnc, RelaxedMTdc (ir_axioms subclasses)
-analysis.py      NEW: bootstrap CIs, joint fit (majority vote + grouped-CV logistic),
-                   gap-gradient binning, out-of-fold predictions
-pipeline.py      NEW: cached stages + verdict collection, factored out of
-                   experiments/p0_pilot/run.py (which becomes a thin recipe over it)
-ranking.py       NEW: generic pairwise->ranking (Copeland = PRP-allpair), ir_measures
-                   evaluation, paired run comparison; reused for axiom-vote rankings later
+config.py         + axiom specs with params ({name, alias, params}), variant field,
+                    rankers list (one config drives both models); Phase 0 configs stay valid
+axioms/registry.py + spec resolution: margin params, LEN precondition margins,
+                    similarity backend binding, alias-aware battery construction
+axioms/relaxed.py NEW: RelaxedTfLnc, RelaxedMTdc (ir_axioms subclasses)
+analysis/         NEW: bootstrap CIs (agreement.py), joint fit — majority vote +
+                    grouped-CV logistic (joint.py), gap-gradient binning (gap.py),
+                    out-of-fold predictions
+pipeline/         NEW: cached stages (stages.py) + verdict collection (collect.py),
+                    factored out of experiments/p0_pilot/run.py (which becomes a thin
+                    recipe over it), plus the shared rq1/rq2 recipe (measurement.py)
+ranking/          NEW: generic pairwise->ranking (Copeland = PRP-allpair, copeland.py),
+                    ir_measures evaluation + paired run comparison (evaluation.py);
+                    reused for axiom-vote rankings later
 experiments/rq1_lexical_agreement/run.py   grid cell -> profiles + joint fit + gap CSVs
 experiments/rq2_semantic_agreement/run.py  rq1 + semantic battery + lexical-vs-combined delta
 experiments/ranking_effectiveness/run.py   NEW: the effectiveness gate (phase1-design §4)
 ```
 
-`ranking.py` is deliberately LLM-agnostic: `copeland_ranking` takes any
-`agreement.model_pair_verdicts`-shaped frame and a first-stage pool, so RQ3 can later feed
+`ranking/` is deliberately LLM-agnostic: `copeland_ranking` takes any
+`analysis.model_pair_verdicts`-shaped frame and a first-stage pool, so RQ3 can later feed
 it axiom majority votes to build an axiom-only ranking on the same code path. The
 effectiveness runner guards that `pairs.strategy == top_k_all_pairs` (Copeland needs the
 complete tournament) and evaluates both the BM25 pool-as-run baseline and the reranked run.
@@ -92,7 +95,7 @@ The `ranking_effectiveness` runner writes, per grid cell × model, under
 - `effectiveness.csv` — per query nDCG@10 and AP for the BM25 baseline and the reranked
   run, with the per-metric deltas
 - `effectiveness.json` — per-metric means, mean deltas and win/tie/loss counts, n_queries,
-  model name, and the `agreement.consistency_stats` of the verdicts for context
+  model name, and the `analysis.consistency_stats` of the verdicts for context
 
 ## 4. Relaxation levers: ir_axioms mechanics
 
@@ -108,7 +111,7 @@ The scientific rationale for each lever is in `phase1-design.md` §5.2; the mech
 | M-TDC | exactly one query term differs in TF (hardcoded) | custom `RelaxedMTdc` subclass: drop the single-difference gate, keep the per-term-pair validity logic |
 
 Aliased columns, e.g. `TFC1@len0.2`, `M-TDC@r0.1`, so strict and relaxed coexist in one
-agreement table. Custom subclasses live in `src/axiomrank/relaxed.py`.
+agreement table. Custom subclasses live in `src/axiomrank/axioms/relaxed.py`.
 
 For the semantic axioms, similarity is a config field on the axiom spec (`similarity:
 wordnet | fasttext`), bound into ir_axioms' injector at battery-build time; axiom columns
@@ -119,12 +122,12 @@ are aliased (`STMC1@wn`, `STMC1@ft`) so both similarity tiers coexist in one tab
 Mirrors the Phase 0 test discipline:
 - Custom relaxed subclasses get synthetic sanity tests: a constructed pair where the
   strict variant is neutral and the relaxed one fires, and one where both agree.
-- `analysis.py` gets a hand-computable test case (bootstrap, joint fit, gap bins).
+- `analysis/` gets a hand-computable test case (bootstrap, joint fit, gap bins).
 - `config.py` extensions get spec-parsing tests (axiom specs with params, multi-ranker
   configs).
-- `pipeline.py` is factored out of `experiments/p0_pilot/run.py` with **no behaviour
+- `pipeline/` is factored out of `experiments/p0_pilot/run.py` with **no behaviour
   change** — the Phase 0 outputs must be reproducible bit-for-bit from the cached store.
-- `ranking.py` gets hand-computable tests: a small tournament with a verified Copeland
+- `ranking/` gets hand-computable tests: a small tournament with a verified Copeland
   order (including a collapsed-tie pair and a Copeland tie broken by first-stage rank),
   pool-tail preservation, multi-query independence, the paired run-comparison helper, and
   a synthetic-qrels test of `evaluate_run`'s metric plumbing (qrels are injectable so the
@@ -135,13 +138,13 @@ Mirrors the Phase 0 test discipline:
 
 ## 6. Work breakdown and runbook
 
-1. `config.py` extensions + parameterised `axioms.py` + `relaxed.py`, with tests (spec
-   parsing; synthetic strict-vs-relaxed sanity pairs).
-2. `analysis.py` (bootstrap, joint fit, gap bins) with a hand-computable test case.
-3. `pipeline.py` factored out; `p0_pilot/run.py` reduced to a recipe (no behaviour change
+1. `config.py` extensions + parameterised `axioms/` + `axioms/relaxed.py`, with tests
+   (spec parsing; synthetic strict-vs-relaxed sanity pairs).
+2. `analysis/` (bootstrap, joint fit, gap bins) with a hand-computable test case.
+3. `pipeline/` factored out; `p0_pilot/run.py` reduced to a recipe (no behaviour change
    — its outputs must be reproducible bit-for-bit from the cached store).
 4. rq1/rq2 runners + the six grid configs; scifact+mock smoke config through the rq1
-   runner end-to-end. `ranking.py` + the `ranking_effectiveness` runner + the three
+   runner end-to-end. `ranking/` + the `ranking_effectiveness` runner + the three
    `eff_*` configs, with the hand-computable Copeland/evaluation tests.
 5. Collection runs, in this order (each resumable, order swap on):
    1. Qwen DL20 top10 (~31 min) — the replication headline.
