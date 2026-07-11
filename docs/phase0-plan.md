@@ -5,6 +5,9 @@ axiom toolkit and the preference-logging pipeline, and pilot the whole chain on 
 **Milestone: a cached preference dataset and a working agreement pipeline.** This document
 is the detailed, implementable version of that phase.
 
+> **Status: complete (2026-07-11).** All §1 exit criteria hold; outcomes, numbers and
+> the decisions feeding Phase 1 are recorded in §9.
+
 ## 1. Objectives and exit criteria
 
 Phase 0 is done when all of the following hold:
@@ -35,10 +38,16 @@ pairs.py         pair sampling from the pool (canonical unordered pairs)
 rankers/base.py  PairwiseRanker interface + PairVerdict
 rankers/mock.py  deterministic hash-scored mock (transitive by construction)
 rankers/hf.py    transformers backend, PRP prompt v0, label-likelihood scoring
+rankers/openai_api.py  OpenAI-compatible endpoint backend (vLLM), chat prompt v1,
+                 verdicts from single-token A/B logprobs
 preferences.py   append-only Parquet store, keyed, dedup on read, lookup before call
 axioms.py        ir_axioms battery wrapper (AxiomaticPreferences transformer)
 agreement.py     canonical verdicts, per-axiom agreement, consistency, transitivity
 ```
+
+Model candidates are vetted by `scripts/sanity_gate.py` (the mandatory 4-way order-swap
+check from §8.2) before any full collection; metrics land per ranker under
+`results/p0_pilot/metrics/<model>/`.
 
 Data flow: `pool → pairs → (store lookup → LLM for misses → store append) → axiom
 preferences → agreement report`. Every intermediate is cached under `data/processed/` so

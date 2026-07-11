@@ -14,7 +14,7 @@ and the literature framework in [`docs/literature-overview.md`](docs/literature-
 | `experiments/` | Config-driven experiment scripts, one directory per phase/RQ | yes |
 | `configs/` | YAML experiment configurations | yes |
 | `notebooks/` | Exploratory analysis (kept light; real logic moves into `src/`) | yes |
-| `scripts/` | Utilities (environment check, downloads, exports) | yes |
+| `scripts/` | Utilities (environment check, ranker sanity gate, downloads, exports) | yes |
 | `thesis/` | The thesis manuscript (LaTeX), added in the writing phase | yes |
 | `data/` | Dataset caches, raw downloads, the preference dataset, processed features | **no** |
 | `results/` | Run files, metrics, figures, tables — one subdirectory per experiment | **no** |
@@ -50,7 +50,10 @@ submodules:
 - [`ir-axioms`](https://github.com/webis-de/ir_axioms) — the axiom battery, PyTerrier integration (Bondarenko et al., SIGIR '22).
 - [`python-terrier`](https://github.com/terrier-org/pyterrier) + [`ir-datasets`](https://ir-datasets.com/) — retrieval, indexing, TREC DL / MS MARCO / BEIR access.
 - [`ir-explain`](https://github.com/souravsaha/ir_explain) — **not installed, maybe later.** Only becomes relevant if we compare our axiomatic account against attribution-style explainers (LIRME/EXS, listwise methods; literature overview §2.6). Its 0.1 release hard-pins a 2024 stack (`numpy==1.24.4`, `torch==2.2.0`, …) that cannot coexist with current `ir_axioms`/PyTerrier. If needed: make a separate isolated uv project (`uv init tools/ir_explain_env --python 3.11 && cd tools/ir_explain_env && uv add ir-explain`) and exchange run files/scores with the main project through `data/` and `results/`.
-- `torch` / `transformers` *(optional extra)* — the open pairwise LLM ranker.
+- `torch` / `transformers` *(optional extra)* — the local pairwise LLM ranker (Flan-T5).
+- `openai` — client for rankers served behind any OpenAI-compatible endpoint (e.g. a
+  vLLM-hosted Qwen); verdicts are scored from single-token logprobs, so the endpoint
+  must allow `logprobs`.
 - Reference only (read, don't depend on): [catherineschen/axiomatic-ir-interventions](https://github.com/catherineschen/axiomatic-ir-interventions), [webis-de MechIR](https://github.com/webis-de), rank-llm (`uv add rank-llm` if RankVicuna/RankZephyr baselines are run locally).
 
 ## Conventions
