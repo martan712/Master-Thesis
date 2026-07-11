@@ -6,6 +6,7 @@ verdicts live in the append-only preference store and are never recomputed (look
 before call), regardless of any --refresh flag.
 """
 
+import os
 import time
 from pathlib import Path
 
@@ -36,7 +37,11 @@ def cached_frame(path: Path, refresh: bool, compute) -> pd.DataFrame:
         return pd.read_parquet(path)
     df = compute()
     path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(path, index=False)
+    # Write-then-rename so a parallel run of the same stage (the qwen and flan
+    # runbooks share the model-independent stages) can never leave a torn file.
+    tmp = path.with_name(f"{path.name}.tmp-{os.getpid()}")
+    df.to_parquet(tmp, index=False)
+    os.replace(tmp, path)
     return df
 
 
