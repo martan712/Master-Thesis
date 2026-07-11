@@ -34,48 +34,66 @@ def _cached(path: Path, refresh: bool, compute) -> pd.DataFrame:
     return df
 
 
+def get_all_orders(cfg, row):
+    """Presentations for one canonical pair: as sampled, plus swapped when configured."""
+    orders = [(row.doc_id_1, row.doc_id_2, row.text_1, row.text_2)]
+    if cfg.ranker.order_swap:
+        orders.append((row.doc_id_2, row.doc_id_1, row.text_2, row.text_1))
+    return [
+        (row.qid, row.query, doc_a, doc_b, text_a, text_b)
+        for doc_a, doc_b, text_a, text_b in orders
+    ]
+
+
+def score_presentation(cfg, ranker, presentation):
+    """Ask the ranker for one presentation's verdict; return a preference-store row."""
+    qid, query, doc_a, doc_b, text_a, text_b = presentation
+
+    start = time.perf_counter()
+    v = ranker.compare(query, text_a, text_b)
+    latency_ms = (time.perf_counter() - start) * 1000
+    return new_row(
+        dataset=cfg.dataset.irds_id,
+        query_id=qid,
+        doc_id_a=doc_a,
+        doc_id_b=doc_b,
+        model=ranker.name,
+        prompt_version=cfg.ranker.prompt_version,
+        verdict=v.verdict,
+        prob_a=v.prob_a,
+        score_a=v.score_a,
+        score_b=v.score_b,
+        latency_ms=latency_ms,
+    )
+
+
 def collect_verdicts(cfg, pairs: pd.DataFrame, store: PreferenceStore) -> pd.DataFrame:
     """Query the ranker for every presentation not already in the store."""
     ranker = None  # built lazily: skip model loading when everything is cached
     existing = store.load(
         dataset=cfg.dataset.irds_id, model=None, prompt_version=cfg.ranker.prompt_version
     )
-    have = set(zip(existing["query_id"], existing["doc_id_a"], existing["doc_id_b"], existing["model"]))
+    have = set(
+        zip(existing["query_id"], existing["doc_id_a"], existing["doc_id_b"], existing["model"])
+    )
 
+    # Create list of document orderings
     presentations = []
     for row in pairs.itertuples():
-        orders = [(row.doc_id_1, row.doc_id_2, row.text_1, row.text_2)]
-        if cfg.ranker.order_swap:
-            orders.append((row.doc_id_2, row.doc_id_1, row.text_2, row.text_1))
-        for doc_a, doc_b, text_a, text_b in orders:
-            presentations.append((row.qid, row.query, doc_a, doc_b, text_a, text_b))
+        presentations.extend(get_all_orders(cfg, row))
 
+    # Score each ordering using the LLM
     buffer: list[dict] = []
     n_new = 0
-    for qid, query, doc_a, doc_b, text_a, text_b in presentations:
+    for presentation in presentations:
+        qid, query, doc_a, doc_b, text_a, text_b = presentation
         model_name = cfg.ranker.model or "mock"
         if (qid, doc_a, doc_b, model_name) in have:
             continue
+
         if ranker is None:
             ranker = make_ranker(cfg.ranker)
-        start = time.perf_counter()
-        v = ranker.compare(query, text_a, text_b)
-        latency_ms = (time.perf_counter() - start) * 1000
-        buffer.append(
-            new_row(
-                dataset=cfg.dataset.irds_id,
-                query_id=qid,
-                doc_id_a=doc_a,
-                doc_id_b=doc_b,
-                model=ranker.name,
-                prompt_version=cfg.ranker.prompt_version,
-                verdict=v.verdict,
-                prob_a=v.prob_a,
-                score_a=v.score_a,
-                score_b=v.score_b,
-                latency_ms=latency_ms,
-            )
-        )
+        buffer.append(score_presentation(cfg, ranker, presentation))
         n_new += 1
         if len(buffer) >= cfg.ranker.batch_flush:
             store.append(pd.DataFrame(buffer))
@@ -90,13 +108,8 @@ def collect_verdicts(cfg, pairs: pd.DataFrame, store: PreferenceStore) -> pd.Dat
         dataset=cfg.dataset.irds_id, model=model_name, prompt_version=cfg.ranker.prompt_version
     )
     wanted = set(zip(pairs["qid"], pairs["doc_id_1"], pairs["doc_id_2"]))
-    canon = [
-        tuple(sorted((a, b)))
-        for a, b in zip(df["doc_id_a"], df["doc_id_b"])
-    ]
-    mask = [
-        (q, c[0], c[1]) in wanted for q, c in zip(df["query_id"], canon)
-    ]
+    canon = [tuple(sorted((a, b))) for a, b in zip(df["doc_id_a"], df["doc_id_b"])]
+    mask = [(q, c[0], c[1]) in wanted for q, c in zip(df["query_id"], canon)]
     return df[mask].reset_index(drop=True)
 
 
