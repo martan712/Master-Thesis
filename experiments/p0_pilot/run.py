@@ -11,106 +11,12 @@ recomputed regardless of --refresh.
 
 import argparse
 import json
-import time
-from pathlib import Path
 
-import pandas as pd
-
-from axiomrank import agreement, paths
+from axiomrank import agreement, pipeline
 from axiomrank.axioms import axiom_preferences
 from axiomrank.config import dump_config, load_config
-from axiomrank.datasets import bm25_pool, index_ref
-from axiomrank.pairs import sample_pairs
-from axiomrank.preferences import PreferenceStore, new_row
-from axiomrank.rankers import make_ranker
-
-
-def _cached(path: Path, refresh: bool, compute) -> pd.DataFrame:
-    if path.exists() and not refresh:
-        return pd.read_parquet(path)
-    df = compute()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(path, index=False)
-    return df
-
-
-def get_all_orders(cfg, row):
-    """Presentations for one canonical pair: as sampled, plus swapped when configured."""
-    orders = [(row.doc_id_1, row.doc_id_2, row.text_1, row.text_2)]
-    if cfg.ranker.order_swap:
-        orders.append((row.doc_id_2, row.doc_id_1, row.text_2, row.text_1))
-    return [
-        (row.qid, row.query, doc_a, doc_b, text_a, text_b)
-        for doc_a, doc_b, text_a, text_b in orders
-    ]
-
-
-def score_presentation(cfg, ranker, presentation):
-    """Ask the ranker for one presentation's verdict; return a preference-store row."""
-    qid, query, doc_a, doc_b, text_a, text_b = presentation
-
-    start = time.perf_counter()
-    v = ranker.compare(query, text_a, text_b)
-    latency_ms = (time.perf_counter() - start) * 1000
-    return new_row(
-        dataset=cfg.dataset.irds_id,
-        query_id=qid,
-        doc_id_a=doc_a,
-        doc_id_b=doc_b,
-        model=ranker.name,
-        prompt_version=cfg.ranker.prompt_version,
-        verdict=v.verdict,
-        prob_a=v.prob_a,
-        score_a=v.score_a,
-        score_b=v.score_b,
-        latency_ms=latency_ms,
-    )
-
-
-def collect_verdicts(cfg, pairs: pd.DataFrame, store: PreferenceStore) -> pd.DataFrame:
-    """Query the ranker for every presentation not already in the store."""
-    ranker = None  # built lazily: skip model loading when everything is cached
-    existing = store.load(
-        dataset=cfg.dataset.irds_id, model=None, prompt_version=cfg.ranker.prompt_version
-    )
-    have = set(
-        zip(existing["query_id"], existing["doc_id_a"], existing["doc_id_b"], existing["model"])
-    )
-
-    # Create list of document orderings
-    presentations = []
-    for row in pairs.itertuples():
-        presentations.extend(get_all_orders(cfg, row))
-
-    # Score each ordering using the LLM
-    buffer: list[dict] = []
-    n_new = 0
-    for presentation in presentations:
-        qid, query, doc_a, doc_b, text_a, text_b = presentation
-        model_name = cfg.ranker.model or "mock"
-        if (qid, doc_a, doc_b, model_name) in have:
-            continue
-
-        if ranker is None:
-            ranker = make_ranker(cfg.ranker)
-        buffer.append(score_presentation(cfg, ranker, presentation))
-        n_new += 1
-        if len(buffer) >= cfg.ranker.batch_flush:
-            store.append(pd.DataFrame(buffer))
-            buffer.clear()
-            print(f"  ... {n_new} new verdicts", flush=True)
-    if buffer:
-        store.append(pd.DataFrame(buffer))
-    print(f"verdicts: {n_new} newly collected, {len(presentations) - n_new} from cache")
-
-    model_name = ranker.name if ranker is not None else (cfg.ranker.model or "mock")
-    df = store.load(
-        dataset=cfg.dataset.irds_id, model=model_name, prompt_version=cfg.ranker.prompt_version
-    )
-    wanted = set(zip(pairs["qid"], pairs["doc_id_1"], pairs["doc_id_2"]))
-    canon = [tuple(sorted((a, b))) for a, b in zip(df["doc_id_a"], df["doc_id_b"])]
-    mask = [(q, c[0], c[1]) in wanted for q, c in zip(df["query_id"], canon)]
-    return df[mask].reset_index(drop=True)
+from axiomrank.datasets import index_ref
+from axiomrank.preferences import PreferenceStore
 
 
 def main() -> None:
@@ -120,32 +26,30 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = load_config(args.config)
-    processed = paths.PROCESSED_DIR / cfg.experiment
-    out = paths.results_dir(cfg.experiment)
+    processed = pipeline.processed_dir(cfg)
+    out = pipeline.output_dir(cfg)
     dump_config(cfg, out / "config.yaml")
 
     print(f"[1/4] BM25 pool ({cfg.dataset.irds_id}, depth {cfg.first_stage.pool_depth})")
-    pool = _cached(
-        processed / "pool.parquet", args.refresh, lambda: bm25_pool(cfg.dataset, cfg.first_stage)
-    )
+    pool = pipeline.build_pool(cfg, args.refresh)
     print(f"      {pool.qid.nunique()} queries, {len(pool)} pooled documents")
 
     print("[2/4] pair sampling")
-    pairs = _cached(
-        processed / "pairs.parquet", args.refresh, lambda: sample_pairs(pool, cfg.pairs, cfg.seed)
-    )
+    pairs = pipeline.build_pairs(cfg, pool, args.refresh)
     print(f"      {len(pairs)} canonical pairs over {pairs.qid.nunique()} queries")
 
     print("[3/4] model verdicts (cached in preference store)")
-    store_df = collect_verdicts(cfg, pairs, PreferenceStore())
+    store_df = pipeline.collect_verdicts(
+        cfg.dataset.irds_id, cfg.ranker, pairs, PreferenceStore()
+    )
 
     print("[4/4] axiom preferences + agreement")
-    names = [n.replace("-", "_") for n in cfg.axioms.names]
-    axiom_df = _cached(
+    names = [s.column for s in cfg.axioms.specs]
+    axiom_df = pipeline.cached_frame(
         processed / "axiom_prefs.parquet",
         args.refresh,
         lambda: axiom_preferences(
-            pool, pairs, cfg.axioms.names, index_location=index_ref(cfg.dataset)
+            pool, pairs, cfg.axioms.specs, index_location=index_ref(cfg.dataset)
         ),
     )
 
