@@ -45,7 +45,7 @@ def _term_similarity(kind: str):
     if kind == "wordnet":
         return WordNetSynonymSetTermSimilarity()
     if kind == "fasttext":
-        # 7.24 GB model download on first similarity() call — gated in phase1-plan §4.1.
+        # 7.24 GB model download on first similarity() call — gated in phase1-design §5.1.
         return FastTextTermSimilarity()
     raise ValueError(f"Unknown term similarity backend: {kind}")
 

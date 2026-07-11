@@ -1,5 +1,5 @@
 # Phase 0 pilot on TREC DL19 — primary ranker: Qwen served at a local OpenAI-compatible
-# endpoint (docs/phase0-plan.md §8.3). Shares experiment/pool/pairs with pilot.yaml;
+# endpoint (docs/phase0-implementation.md §5.3). Shares experiment/pool/pairs with pilot.yaml;
 # verdicts are keyed by (model, prompt_version) so both runs coexist in the store.
 experiment: p0_pilot
 seed: 42

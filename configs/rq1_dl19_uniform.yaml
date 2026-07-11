@@ -1,5 +1,5 @@
 # RQ1 grid cell: DL19 × uniform depth-100 sampling (validity control), both rankers
-# (phase1-plan.md §2–3). Wide-gap pairs where classical axioms should visibly work;
+# (phase1-design.md §3–4). Wide-gap pairs where classical axioms should visibly work;
 # the gap gradient computed here frames the top-10 null result.
 experiment: rq1_lexical_agreement
 variant: dl19_uniform

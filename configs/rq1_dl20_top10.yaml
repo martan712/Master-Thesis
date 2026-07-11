@@ -1,5 +1,5 @@
 # RQ1 grid cell: DL20 × top-10 all-pairs (primary condition), both rankers
-# (phase1-plan.md §2–3). The replication collection: does the DL19 agreement
+# (phase1-design.md §3–4). The replication collection: does the DL19 agreement
 # profile generalise across query sets?
 experiment: rq1_lexical_agreement
 variant: dl20_top10

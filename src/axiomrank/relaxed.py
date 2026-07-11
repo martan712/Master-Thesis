@@ -1,8 +1,8 @@
-"""Relaxed-precondition variants of strict ir_axioms axioms (phase1-plan.md §3.2).
+"""Relaxed-precondition variants of strict ir_axioms axioms (phase1-implementation.md §4).
 
 TF-LNC and M-TDC have hardcoded preconditions in ir_axioms 1.1.2 (exact non-query
 length equality; exactly equal total query-term mass), which leaves them with ~0-5%
-coverage on natural pairs (phase0-plan.md §9.3). The subclasses here replace those
+coverage on natural pairs (phase0-design.md §7.3). The subclasses here replace those
 exact equalities with a relative tolerance, `margin_fraction`, and are otherwise
 verbatim ports of the upstream preference logic — pinned to ir_axioms 1.1.2; re-check
 on upgrade. Margin 0 reproduces the strict axiom.

@@ -1,4 +1,4 @@
-"""4-way order-swap sanity gate for pairwise ranker candidates (phase0-plan §8.2).
+"""4-way order-swap sanity gate for pairwise ranker candidates (phase0-implementation §5.2).
 
 Two obvious relevant/irrelevant pairs, each shown in both presentation orders. A model
 passes only if it picks the relevant passage in all four presentations — anything else

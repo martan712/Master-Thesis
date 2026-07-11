@@ -2,7 +2,7 @@
 
 One *grid cell* (a config: collection × sampling condition, with a list of rankers)
 produces, per ranker, the full set of Phase 1 outputs under
-results/<experiment>/<variant>/metrics/<model>/ (phase1-plan.md §5):
+results/<experiment>/<variant>/metrics/<model>/ (phase1-implementation.md §3):
 
     agreement.csv       per-axiom coverage + agreement with query-bootstrap CIs
     consistency.json    position consistency, decisiveness, transitivity, latency

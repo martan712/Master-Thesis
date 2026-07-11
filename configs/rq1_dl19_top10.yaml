@@ -1,5 +1,5 @@
 # RQ1 grid cell: DL19 × top-10 all-pairs (primary condition), both rankers
-# (phase1-plan.md §2–3). Top-10 verdicts for both models are already in the store
+# (phase1-design.md §3–4). Top-10 verdicts for both models are already in the store
 # from Phase 0; this cell re-analyses them with the extended battery.
 experiment: rq1_lexical_agreement
 variant: dl19_top10
@@ -37,7 +37,7 @@ rankers:
 axioms:
   # Tier 1: the strict Phase 0 core (ir_axioms defaults), for comparability.
   # Tier 2: similarity-free additions from the plan §3 battery.
-  # Tier 3: relaxed-precondition variants (phase1-plan.md §3.2); the @ suffix names
+  # Tier 3: relaxed-precondition variants (phase1-implementation.md §4); the @ suffix names
   #         the widened margin so strict and relaxed coexist in one table.
   lexical:
     - TFC1

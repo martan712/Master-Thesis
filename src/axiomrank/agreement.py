@@ -1,6 +1,6 @@
 """Agreement, position-consistency and transitivity analysis.
 
-Definitions (fixed in docs/phase0-plan.md §3 so all phases stay comparable):
+Definitions (fixed in docs/phase0-design.md §3.5 so all phases stay comparable):
 
 - Model verdict per canonical pair: +1 if the model prefers doc_id_1, -1 for doc_id_2,
   0 for ties. When both presentation orders were queried and disagree, the pair is

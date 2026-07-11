@@ -1,4 +1,4 @@
-# Phase 0 pilot on TREC DL19 (docs/phase0-plan.md).
+# Phase 0 pilot on TREC DL19 (docs/phase0-design.md).
 experiment: p0_pilot
 seed: 42
 primary_metric: fidelity   # the pilot characterises the model, not the qrels (plan §4.1)

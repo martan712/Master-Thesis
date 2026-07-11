@@ -1,5 +1,5 @@
 # RQ2 grid cell: DL20 × top-10 all-pairs, both rankers, semantic axioms at the
-# WordNet tier (phase1-plan.md §4). See rq2_dl19_top10.yaml.
+# WordNet tier (phase1-design.md §5). See rq2_dl19_top10.yaml.
 experiment: rq2_semantic_agreement
 variant: dl20_top10
 seed: 42

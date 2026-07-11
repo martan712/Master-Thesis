@@ -3,8 +3,8 @@
 Everything operates on the *merged pair frame*: one row per canonical pair with the
 model's collapsed verdict (`model_pref` in {-1, 0, +1}, from
 `agreement.model_pair_verdicts`) and one {-1, 0, +1} column per axiom (from
-`axioms.axiom_preferences`). Definitions follow docs/phase0-plan.md §3; the analyses
-are specified in docs/phase1-plan.md §3.3.
+`axioms.axiom_preferences`). Definitions follow docs/phase0-design.md §3.5; the analyses
+are specified in docs/phase1-design.md §4.3.
 """
 
 import numpy as np
@@ -13,7 +13,7 @@ import pandas as pd
 from axiomrank.agreement import PAIR_KEY
 
 # The Phase 0 battery at ir_axioms defaults, as column names — the comparability
-# feature set for joint fits (phase1-plan.md §3.1 tier 1).
+# feature set for joint fits (phase1-design.md §4.1 tier 1).
 STRICT_CORE = [
     "TFC1", "TFC3", "M_TDC", "LNC1", "TF_LNC",
     "PROX1", "PROX2", "PROX3", "PROX4", "PROX5",

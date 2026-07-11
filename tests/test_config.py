@@ -1,4 +1,4 @@
-"""Axiom-spec parsing and multi-ranker config handling (phase1-plan.md §5)."""
+"""Axiom-spec parsing and multi-ranker config handling (phase1-implementation.md §3)."""
 
 from pathlib import Path
 

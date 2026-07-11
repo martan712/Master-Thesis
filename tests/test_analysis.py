@@ -1,4 +1,4 @@
-"""Hand-computable cases for the Phase 1 analyses (phase1-plan.md §3.3)."""
+"""Hand-computable cases for the Phase 1 analyses (phase1-design.md §4.3)."""
 
 import numpy as np
 import pandas as pd

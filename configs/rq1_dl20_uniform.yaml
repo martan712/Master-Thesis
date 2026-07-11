@@ -1,5 +1,5 @@
 # RQ1 grid cell: DL20 × uniform depth-100 sampling (validity control), both rankers
-# (phase1-plan.md §2–3).
+# (phase1-design.md §3–4).
 experiment: rq1_lexical_agreement
 variant: dl20_uniform
 seed: 42

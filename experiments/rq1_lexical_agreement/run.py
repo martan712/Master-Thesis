@@ -1,4 +1,4 @@
-"""RQ1: lexical axiom agreement profiles (phase1-plan.md §3).
+"""RQ1: lexical axiom agreement profiles (phase1-design.md §4).
 
 Per grid cell (one config = collection × sampling condition, both rankers):
 agreement profile with bootstrap CIs, joint fits on the strict Phase 0 core vs. the

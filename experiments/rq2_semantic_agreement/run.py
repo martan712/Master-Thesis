@@ -1,4 +1,4 @@
-"""RQ2: do semantic axioms add agreement/predictive power? (phase1-plan.md §4)
+"""RQ2: do semantic axioms add agreement/predictive power? (phase1-design.md §5)
 
 Same measurement as rq1 but with the semantic battery (STMC1/2, REG/ANTI-REG at the
 configured similarity backend) alongside the lexical one; the joint fit compares the

@@ -1,4 +1,4 @@
-"""Synthetic strict-vs-relaxed sanity pairs for the relaxed axioms (phase1-plan.md §3.2).
+"""Synthetic strict-vs-relaxed sanity pairs for the relaxed axioms (phase1-implementation.md §5).
 
 Each relaxed variant gets a constructed pair where the strict axiom is neutral and the
 relaxed one fires, one where both agree, and a check that margin 0 reproduces the

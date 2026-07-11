@@ -97,7 +97,7 @@ literature overview, implemented through `ir_axioms` [19] and `ir_explain` [36],
 axiom returns a preference for one document, the other, or neither.
 
 One sampling decision from the Phase 0 pilot is recorded here because it shapes every
-question below (numbers in `phase0-plan.md` §9). Pairs sampled among the BM25 top-10 are
+question below (numbers in `phase0-design.md` §7). Pairs sampled among the BM25 top-10 are
 the *primary* condition throughout the thesis: they are where reranking decisions are
 actually made, and they are precisely where the pilot found the classical lexical battery
 to explain almost nothing — jointly about one to three accuracy points over the base rate,
@@ -139,7 +139,7 @@ systematic residual points towards a new-axiom study, whereas a thin residual wo
 that the model is largely axiom-reducible and would shift the weight of the thesis towards
 RQ5. The Phase 0 pilot already leans strongly towards the first branch — on top-10 pairs
 the residual is nearly everything, and it is stable across two very different models
-(`phase0-plan.md` §9.3) — so RQ4 should be planned as the main act, not the contingency. In RQ4 we take the systematic residual, try to characterise it, for instance as
+(`phase0-design.md` §7.3) — so RQ4 should be planned as the main act, not the contingency. In RQ4 we take the systematic residual, try to characterise it, for instance as
 contextual behaviour, a form of semantic mismatch, or an effect that depends on the other
 documents present, and formalise it as one or more new axioms, which we then add to the
 re-ranker and evaluate against the classical set with nDCG. If the residual turns out to be

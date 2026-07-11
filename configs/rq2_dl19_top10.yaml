@@ -1,6 +1,6 @@
 # RQ2 grid cell: DL19 × top-10 all-pairs, both rankers, semantic axioms at the
-# WordNet tier (phase1-plan.md §4). The joint fit compares lexical-only vs.
-# lexical+semantic; the deltas decide the 7.24 GB fastText gate (§4.1). Verdicts are
+# WordNet tier (phase1-design.md §5). The joint fit compares lexical-only vs.
+# lexical+semantic; the deltas decide the 7.24 GB fastText gate (§5.1). Verdicts are
 # shared with rq1 through the preference store — only axiom columns are new here.
 experiment: rq2_semantic_agreement
 variant: dl19_top10
