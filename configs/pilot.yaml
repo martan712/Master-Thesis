@@ -19,7 +19,7 @@ pairs:
 
 ranker:
   backend: hf
-  model: google/flan-t5-small   # wiring model; the definitive choice is a pilot outcome
+  model: google/flan-t5-large   # only Flan-T5 to pass the order-swap gate (small 0/4, base 3/4)
   prompt_version: v0
   order_swap: true              # measure position bias (plan risk: order sensitivity)
   max_chars: 2000
