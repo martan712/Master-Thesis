@@ -223,3 +223,89 @@ resumes where it left off (HF downloads are resumable, the verdict store is incr
    non-transitivity rate, and the latency bookkeeping for the RQ5/6 efficiency baseline.
 4. Decide and record in this document: pilot model verdict, sampling scale for Phase 1,
    and whether STMC axioms enter the battery (measure their fastText download first).
+
+## 9. Pilot outcomes and decisions (2026-07-11)
+
+Phase 0 is complete: all §1 exit criteria hold. 43 DL19 judged queries, BM25 top-10
+all-pairs → 1,900 canonical pairs, both presentation orders → 3,800 verdicts per model,
+collected once and cached in `data/preferences/`. Metrics per model under
+`results/p0_pilot/metrics/<model>/`.
+
+### 9.1 Sanity gates (4-way order-swap, scripts/sanity_gate.py)
+
+| model | result | note |
+|---|---|---|
+| flan-t5-small | FAIL 0/4 correct-when-swapped | answered "Passage A" in all four presentations |
+| flan-t5-base | FAIL 3/4 | residual A-bias; probabilities ≈ 0.5 throughout |
+| flan-t5-large | PASS 4/4 | decisive (prob ≥ 0.998) |
+| Qwen3.6-35B-A3B-AWQ | PASS 4/4 | via vLLM at localhost:9086; `enable_thinking: false` verified — bare "A"/"B" answers, no reasoning preamble |
+
+Consistent with PRP (Qin et al.): within Flan-T5 only *large* can rank pairwise.
+
+### 9.2 Pilot numbers (DL19, top-10 all-pairs, prompt v0/v1)
+
+| | Qwen3.6-35B-A3B-AWQ | flan-t5-large |
+|---|---|---|
+| position consistency | 0.714 | 0.671 |
+| raw verdict split (a/b/tie) | 1448 / 2276 / 76 — **B-biased** | 2484 / 1316 / 0 — **A-biased** |
+| non-transitivity (cyclic/complete triangles) | 2/2096 = 0.001 | 6/1699 = 0.004 |
+| mean latency per presentation | 386 ms (API, 1 token) | 1138 ms (CPU, 2 forward passes) |
+| conf.–coverage correlation | 0.004 | −0.131 |
+
+Per-axiom agreement over evaluable pairs (axiom non-neutral ∧ model decisive), with
+coverage over the 1,900 pairs:
+
+| axiom | coverage | Qwen agr. | flan-large agr. |
+|---|---|---|---|
+| TFC1 | 0.757 | 0.478 | 0.466 |
+| PROX1 | 0.395 | 0.597 | 0.622 |
+| PROX2 | 0.498 | 0.354 | 0.328 |
+| PROX3 | 0.128 | 0.675 | 0.707 |
+| PROX4 | 0.205 | 0.639 | 0.595 |
+| PROX5 | 0.242 | 0.560 | 0.536 |
+| LNC1 | 0.063 | 0.639 | 0.539 |
+| TF-LNC | 0.049 | 0.547 | 0.576 |
+| M-TDC | 0.008 | 0.833 | 0.889 |
+| TFC3 | 0.001 | 0.500 | 0.500 |
+
+### 9.3 Findings against the §5 open questions
+
+- **Position consistency is the dominant noise source** (67–71%): order-swap collection
+  stays mandatory for every model and every phase. Notably the two models are biased in
+  *opposite directions* (Qwen toward the second-shown passage, flan-t5-large toward the
+  first), so position bias is not a universal artefact of the prompt template.
+- **Decisive preferences are almost perfectly transitive** (≤0.4% cyclic triangles) once
+  position-inconsistent pairs are treated as ties. Non-transitivity is not a practical
+  obstacle for rank aggregation; complete triangles can be retained at low cost.
+- **The agreement *profile* replicates across architectures.** A 0.8B seq2seq and a 35B
+  MoE agree on which axioms track them: TFC1 *below* chance (~0.47) and PROX2 anti-
+  agreeing (~0.33–0.35) for both, PROX3 highest (~0.68–0.71). Early evidence that the
+  axiomatic account characterises LLM pairwise ranking generally, not one checkpoint —
+  and that these rankers are *not* term-frequency rankers (RQ1 has signal).
+- **Strict-precondition axioms are as dead on DL19 as on SciFact** (TFC3 0.1%, M-TDC
+  0.8%, TF-LNC 4.9%, LNC1 6.3% coverage): Phase 1 must add relaxed-precondition
+  (margin-parameterised) variants or accept them as low-coverage curiosities. The
+  usable lexical core is TFC1 + PROX1–PROX5 (13–76% coverage); 94.6% of pairs have at
+  least one non-neutral axiom.
+- **Model confidence and axiom coverage are orthogonal** (corr 0.004 / −0.131): axioms
+  do not simply fire on the pairs the model is sure about, so coverage-weighted fidelity
+  and confidence-stratified analyses (RQ6) measure genuinely different things.
+- **Semantic axioms (STMC1/2) deferred to Phase 1**: their similarity backend
+  (`facebook/fasttext-en-vectors`) is a 7.24 GB download (measured, not fetched);
+  ir_axioms also offers a WordNet-based term similarity worth evaluating first.
+
+### 9.4 Decisions
+
+1. **Primary ranker: Qwen3.6-35B-A3B-AWQ** (OpenAI backend, prompt v1, logprob-scored,
+   thinking disabled). **Contrast model: flan-t5-large** (HF backend, prompt v0) — it
+   passed the gate, its profile is sane, and its agreement pattern independently
+   replicates the primary's. small/base are kept in the store only as position-bias
+   exhibits.
+2. **Phase 1 sampling scale**: at 386 ms/call a full DL19 top-10 all-pairs double-order
+   sweep costs ~25 min on the local endpoint. Budget allows DL20 as second collection
+   and/or k=20 pools (190 pairs/query ≈ 16.3k presentations ≈ 1.8 h/model). Order swap
+   (×2) stays in all budgets.
+3. **STMC axioms do not enter the Phase 0/1 battery yet** — decide in Phase 1 (RQ2)
+   after comparing WordNet similarity vs the 7.24 GB fastText download.
+4. **Battery for RQ1** starts from TFC1 + PROX1–5 (+LNC1/TF-LNC/M-TDC as low-coverage
+   extras); relaxed preconditions are a Phase 1 work item.
