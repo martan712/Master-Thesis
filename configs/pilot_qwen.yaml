@@ -1,0 +1,33 @@
+# Phase 0 pilot on TREC DL19 — primary ranker: Qwen served at a local OpenAI-compatible
+# endpoint (docs/phase0-plan.md §8.3). Shares experiment/pool/pairs with pilot.yaml;
+# verdicts are keyed by (model, prompt_version) so both runs coexist in the store.
+experiment: p0_pilot
+seed: 42
+primary_metric: fidelity
+
+dataset:
+  irds_id: msmarco-passage/trec-dl-2019/judged
+  hf_artifact: pyterrier/msmarco-passage.terrier
+
+first_stage:
+  retriever: bm25
+  pool_depth: 100
+
+pairs:
+  strategy: top_k_all_pairs
+  k: 10
+
+ranker:
+  backend: openai
+  model: Qwen3.6-35B-A3B          # must match the id the server reports at /v1/models
+  base_url: http://localhost:9086/v1
+  prompt_version: v1              # chat-style PRP prompt, single-letter answer
+  order_swap: true
+  max_chars: 2000
+  extra_body:
+    chat_template_kwargs:
+      enable_thinking: false      # thinking tokens first would break logprob scoring
+
+axioms:
+  lexical: [TFC1, TFC3, M-TDC, LNC1, TF-LNC, PROX1, PROX2, PROX3, PROX4, PROX5]
+  semantic: []   # STMC1/STMC2 need embedding downloads; enable after measuring the cost

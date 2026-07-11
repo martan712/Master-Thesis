@@ -145,8 +145,9 @@ def main() -> None:
         "model": store_df["model"].iloc[0] if len(store_df) else None,
     }
 
-    metrics = out / "metrics"
-    metrics.mkdir(exist_ok=True)
+    # one metrics directory per ranker, so contrast and primary runs coexist
+    metrics = out / "metrics" / (cfg.ranker.model or "mock").replace("/", "__")
+    metrics.mkdir(parents=True, exist_ok=True)
     table.to_csv(metrics / "agreement.csv", index=False)
     with open(metrics / "consistency.json", "w") as f:
         json.dump(stats, f, indent=2)
