@@ -93,6 +93,25 @@ def test_nontransitivity_detects_cycle():
         }
     )
     stats = nontransitivity_rate(verdicts)
+    assert stats["n_triangles_sampled"] == 2
     assert stats["n_complete_triangles"] == 2
+    assert stats["triangle_survival"] == 1.0
     assert stats["n_cyclic"] == 1
     assert stats["nontransitivity_rate"] == 0.5
+
+
+def test_tied_edge_drops_triangle_from_complete_but_not_sampled():
+    verdicts = pd.DataFrame(
+        {
+            "query_id": ["q1"] * 3,
+            "doc_id_1": ["d1", "d1", "d2"],
+            "doc_id_2": ["d2", "d3", "d3"],
+            # d2-d3 was scored but position-inconsistent -> tie -> triangle incomplete
+            "model_pref": [1, 1, 0],
+        }
+    )
+    stats = nontransitivity_rate(verdicts)
+    assert stats["n_triangles_sampled"] == 1
+    assert stats["n_complete_triangles"] == 0
+    assert stats["triangle_survival"] == 0.0
+    assert stats["nontransitivity_rate"] is None

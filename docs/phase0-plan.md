@@ -248,7 +248,8 @@ Consistent with PRP (Qin et al.): within Flan-T5 only *large* can rank pairwise.
 |---|---|---|
 | position consistency | 0.714 | 0.671 |
 | raw verdict split (a/b/tie) | 1448 / 2276 / 76 — **B-biased** | 2484 / 1316 / 0 — **A-biased** |
-| non-transitivity (cyclic/complete triangles) | 2/2096 = 0.001 | 6/1699 = 0.004 |
+| complete decisive triangles (of 5,050 sampled) | 2,096 (41.5%) | 1,699 (33.6%) |
+| non-transitivity (cyclic/complete) | 2/2096 = 0.001 | 6/1699 = 0.004 |
 | mean latency per presentation | 386 ms (API, 1 token) | 1138 ms (CPU, 2 forward passes) |
 | conf.–coverage correlation | 0.004 | −0.131 |
 
@@ -276,7 +277,11 @@ coverage over the 1,900 pairs:
   first), so position bias is not a universal artefact of the prompt template.
 - **Decisive preferences are almost perfectly transitive** (≤0.4% cyclic triangles) once
   position-inconsistent pairs are treated as ties. Non-transitivity is not a practical
-  obstacle for rank aggregation; complete triangles can be retained at low cost.
+  obstacle for rank aggregation; complete triangles can be retained at low cost. (Both
+  models see the same 5,050 sampled triangles; a triangle is evaluable for cyclicity
+  only if the model is decisive on all three edges, so the complete-triangle count is
+  itself a consistency metric — the more a model flip-flops on order, the fewer of its
+  triangles survive.)
 - **The agreement *profile* replicates across architectures.** A 0.8B seq2seq and a 35B
   MoE agree on which axioms track them: TFC1 *below* chance (~0.47) and PROX2 anti-
   agreeing (~0.33–0.35) for both, PROX3 highest (~0.68–0.71). Early evidence that the
