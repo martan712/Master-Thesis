@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Phase 1 measurement runbook (docs/phase1-plan.md §8.5) as one script.
+# Phase 1 agreement (fidelity) runbook (docs/phase1-implementation.md §6) as one script.
+# The companion effectiveness gate is scripts/run_phase1_effectiveness.sh.
 #
-# Usage: scripts/run_phase1.sh [all|qwen|flan]
+# Usage: scripts/run_phase1_agreement.sh [all|qwen|flan]
 #
 #   all   (default) smoke + gate + every grid cell, both models — Qwen first,
 #         then the ~4.6 h flan-t5-large CPU replication
@@ -60,5 +61,6 @@ if [[ "$mode" != qwen ]]; then
     rq2 --config configs/rq2_dl20_top10.yaml --only-model flan
 fi
 
-step "phase 1 runs done — results under results/rq1_lexical_agreement/ and results/rq2_semantic_agreement/"
-echo "next: analysis pass + record decisions in docs/phase1-plan.md §9 (fastText gate, RQ3 battery)"
+step "phase 1 agreement runs done — results under results/rq1_lexical_agreement/ and results/rq2_semantic_agreement/"
+echo "next: run the effectiveness gate — scripts/run_phase1_effectiveness.sh (verdicts are"
+echo "      already in the store, so it is a zero-cost check that Qwen beats BM25 on nDCG@10)"

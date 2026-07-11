@@ -1,0 +1,27 @@
+# Effectiveness-gate smoke test: tiny collection, mock ranker, the full pool → pairs →
+# verdicts → Copeland → evaluation path in minutes with no large downloads. beir/scifact
+# /test ships qrels, so evaluate_run works end to end here.
+experiment: ranking_effectiveness
+variant: scifact_mock
+seed: 42
+primary_metric: effectiveness
+
+dataset:
+  irds_id: beir/scifact/test   # 5k-doc collection; index is built locally in seconds
+
+first_stage:
+  retriever: bm25
+  pool_depth: 20
+
+pairs:
+  strategy: top_k_all_pairs
+  k: 5
+  max_queries: 5
+
+rankers:
+  - backend: mock
+    order_swap: true
+
+axioms:
+  lexical: []
+  semantic: []

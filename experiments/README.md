@@ -7,6 +7,7 @@ One directory per phase / research question, prefixed for ordering (mirrors the 
 p0_pilot/                 Phase 0 — harness, preference logging, piloted on DL19
 rq1_lexical_agreement/    Phase 1 — lexical axiom agreement profiles
 rq2_semantic_agreement/   Phase 1 — semantic axioms added
+ranking_effectiveness/    Phase 1 — effectiveness gate: Copeland (PRP-allpair) vs BM25
 rq3_decomposition/        Phase 2 — combined axiom model + residual analysis
 rq4_new_axioms/           Phase 3 — formalising and validating new axioms
 rq5_surrogate/            Phase 4 — pointwise Bradley-Terry surrogate, efficiency frontier

@@ -43,7 +43,13 @@ Phase 1 is done when all of the following hold:
 6. **Joint fit graduated.** The Phase 0 ad-hoc joint-fit analysis (majority vote,
    query-grouped CV logistic regression) is a reproducible script whose outputs exist for
    every grid cell — the direct input to RQ3.
-7. **Decisions recorded in §8**: the battery + margins for RQ3, the semantic similarity
+7. **Effectiveness gate passed** (§4). The Copeland aggregation of Qwen's cached top-10
+   all-pairs verdicts (= PRP-allpair) beats the BM25 first-stage baseline on nDCG@10 on
+   *both* DL19 and DL20; flan-t5-large is reported as contrast, not gated. This validates
+   that the top-10 residual the rest of the thesis studies is skill rather than noise;
+   stop-and-fix (prompt/scoring/model) if Qwen fails to clearly beat BM25 before any axiom
+   conclusion is drawn.
+8. **Decisions recorded in §9**: the battery + margins for RQ3, the semantic similarity
    backend, and which grid cells RQ3 builds its decomposition on.
 
 Primary metric: **fidelity** throughout (we characterise the model, not the qrels), as
@@ -79,9 +85,49 @@ Order swap stays mandatory everywhere (Phase 0 finding: position inconsistency i
 dominant noise source, and its direction is model-specific). k=20 pools remain a fallback
 if the gradient analysis wants more mid-gap pairs, not a default.
 
-## 4. RQ1 — the lexical battery, extended
+## 4. Effectiveness gate — do the pairwise verdicts make a ranker?
 
-### 4.1 Battery composition
+Phase 1's headline finding is a *null*: the classical battery explains almost nothing of
+the LLM's top-10 pairwise decisions. Every later phase treats that large residual as the
+interesting object — the part of the ranker's behaviour that the axioms miss. That reading
+only holds if the residual is *skill*: structure that produces a genuinely better ranking.
+If our Qwen setup cannot turn its verdicts into a ranking that beats BM25, the residual is
+noise, and the downstream decomposition, new-axiom and surrogate work would be chasing
+model error rather than model competence. The motivation in the research plan asserts that
+literature rerankers are strong; this gate verifies that the assertion holds *for our
+setup* before the thesis leans on it.
+
+**Method.** For each grid cell of the top-10 all-pairs condition, we aggregate a ranker's
+cached pairwise verdicts into a ranking by *Copeland scoring*: a document's score is
+(wins − losses) over the pairs it appears in, position-inconsistent pairs already having
+collapsed to ties that contribute nothing (§5.3 definitions). Copeland over a complete
+top-k tournament is exactly **PRP-allpair** from the pairwise-reranking literature (Qin et
+al.), so our numbers are directly comparable to published ones. Documents below the
+reranked top-10 keep their BM25 order beneath the reranked block, and equal Copeland
+scores are broken by BM25 rank, so the run is a deterministic reordering of the first-stage
+pool. We score both the BM25 baseline and the reranked run against the TREC qrels with
+`ir_measures`; **nDCG@10 is primary, MAP secondary**, reported as an honest paired
+per-query comparison (mean deltas and win/tie/loss counts), not two disembodied means.
+
+**Anchors and decision rule.** Literature puts BM25 at ≈ 0.50 nDCG@10 on DL19/DL20 and a
+competent PRP-allpair reranker at ≈ 0.65–0.70. The gate: **Qwen must clearly beat BM25 on
+nDCG@10 on both collections.** If it does not, we stop and fix the prompt, the logprob
+scoring or the model *before* drawing any axiom conclusion — a residual we cannot show to
+be skill is not a foundation. flan-t5-large is reported as contrast but not gated (it is
+the weaker Phase 0 contrast model, and the thesis's claims rest on Qwen).
+
+The check costs **zero new model calls**: the verdicts are keyed by (dataset, model,
+prompt_version) in the preference store and are already collected by the RQ1 top-10 runs;
+the gate only re-reads them. It also doubles as the anchor the research plan promised when
+it fixed *fidelity* as the primary metric for characterisation (plan §4.1): fidelity is
+safe to privilege precisely because this effectiveness gate independently establishes that
+the object being characterised is a competent ranker. The engineering — `ranking.py`, the
+`ranking_effectiveness` experiment, the `eff_*` configs — is in `phase1-implementation.md`
+§3.
+
+## 5. RQ1 — the lexical battery, extended
+
+### 5.1 Battery composition
 
 Three tiers, all computed on every grid cell (axiom computation is local CPU and cheap
 relative to verdict collection):
@@ -91,9 +137,9 @@ relative to verdict collection):
 2. **Additions** — the remaining similarity-free axioms from the plan §3 battery that
    Phase 0 never ran: `AND, DIV, LB1`. (REG/ANTI-REG need a term-similarity backend and
    therefore live in RQ2.)
-3. **Relaxed variants** — §4.2.
+3. **Relaxed variants** — §5.2.
 
-### 4.2 Relaxed preconditions
+### 5.2 Relaxed preconditions
 
 Phase 0 found the strict-precondition axioms nearly dead on natural pairs (TFC3 0.1%,
 M-TDC 0.8%, TF-LNC 4.9%, LNC1 6.3% coverage) while M-TDC — where it fired at all — was the
@@ -115,7 +161,7 @@ single-difference gate makes the variant fire on pairs the original M-TDC exclud
 purpose; it is therefore no longer M-TDC but a variant inspired by it. Its agreement and
 coverage numbers are *ours* and are **not comparable to literature M-TDC**, and the thesis
 must present them that way. This is a design fact, stated here where the lever is defined,
-not only a downstream risk (see §7).
+not only a downstream risk (see §8).
 
 Margins per relaxed variant: **{0.2, 0.5}** for the `LEN`/TF tolerances (0.1 is the strict
 default and already in tier 1) and **{0.1, 0.3}** for the two custom subclasses (whose
@@ -124,7 +170,7 @@ deliverable is a coverage-vs-margin and agreement-vs-margin table per axiom: the
 interesting outcome is whether M-TDC's high agreement survives the coverage gain or was a
 small-sample artefact of its 15-pair niche.
 
-### 4.3 Analyses and replication targets
+### 5.3 Analyses and replication targets
 
 Per grid cell × model, three analyses. Each is tagged **[core]** (a headline result that
 will appear in the thesis) or **[exploratory]** (a diagnostic that supports the core
@@ -162,9 +208,9 @@ DL20 either replicates the profile (the axiomatic characterisation generalises a
 query sets) or breaks it (the profile is query-set-specific) — both are reportable RQ1
 results.
 
-## 5. RQ2 — semantic axioms
+## 6. RQ2 — semantic axioms
 
-### 5.1 Two-tier similarity strategy
+### 6.1 Two-tier similarity strategy
 
 The semantic axioms need a term-similarity function; ir_axioms defaults to fastText
 (`facebook/fasttext-en-vectors`, a measured 7.24 GB download) but ships a WordNet
@@ -181,13 +227,13 @@ protocol is explicitly staged:
    — a blunt similarity function that already moves the needle justifies a better one; if
    WordNet-STMC is pure noise at decent coverage, a denser similarity is unlikely to
    rescue it and the money result is the null. The gate decision and its numbers are
-   recorded in §8 either way. (The third option from plan §7 — the ranker's own hidden
+   recorded in §9 either way. (The third option from plan §7 — the ranker's own hidden
    states — is out of reach for an API-served model and stays out of scope.)
 
 Both similarity tiers coexist in one agreement table; the binding of a similarity backend
 to the semantic axioms is an implementation detail (`phase1-implementation.md` §3–4).
 
-### 5.2 Analyses
+### 6.2 Analyses
 
 Same analyses as RQ1 (a wider battery), plus the RQ2-specific comparison: joint fit on
 lexical-only vs. lexical+semantic feature sets, same folds, reporting Δaccuracy and ΔAUC
@@ -195,31 +241,37 @@ per grid cell. This **lexical-vs-semantic delta is [core]**. A clean null — se
 nothing that survives CV — is an acceptable, informative RQ2 answer (plan §4.2); with the
 top-10 residual as large as Phase 0 measured, even a one-point gain would be noteworthy.
 
-## 6. Open questions Phase 1 must answer (feeding RQ3/RQ4)
+## 7. Open questions Phase 1 must answer (feeding RQ3/RQ4)
 
 - Does the DL19 agreement profile replicate on DL20? (If yes, RQ3 can pool collections;
   if no, the decomposition must be per-collection.)
 - Does the gap gradient confirm the pipeline? (Validity of the top-10 null.)
+- Does the effectiveness gate pass — is Qwen's Copeland ranking clearly above BM25 on
+  nDCG@10 on both collections (§4)? (Validity of treating the top-10 residual as skill.)
 - Does relaxing preconditions buy coverage without destroying agreement — i.e. does M-TDC
   stay at ~0.85 when it fires on 10% of pairs instead of 0.8%?
 - Do semantic axioms move joint predictive power at all, and is fastText worth 7 GB?
 - How large is the *best* achievable axiom feature set's joint accuracy? (This is RQ3's
   starting number; Phase 0's 0.60 on the strict core is the floor.)
 
-## 7. Scientific risks
+## 8. Scientific risks
 
 - **Relaxed M-TDC changes the axiom's meaning**, not just its tolerance — dropping the
   single-difference gate makes it fire on pairs the original authors excluded on purpose.
   Its agreement number is therefore *ours*, not comparable to literature M-TDC; the design
-  doc states this at the point of definition (§4.2) and the thesis must too.
+  doc states this at the point of definition (§5.2) and the thesis must too.
 - **WordNet similarity is crude** (synonym-set overlap, zero for out-of-vocabulary terms):
   a weak RQ2 null at the WordNet tier alone would be contestable — which is exactly why the
-  fastText gate is specified numerically in §5.1 rather than left to taste.
+  fastText gate is specified numerically in §6.1 rather than left to taste.
 - **Multiple comparisons.** ~25 axiom columns × 12 grid cells invites cherry-picking; the
-  CIs and the pre-registered replication targets in §4.3 are the discipline, and RQ3's
+  CIs and the pre-registered replication targets in §5.3 are the discipline, and RQ3's
   cross-validated joint fit — not any single axiom's agreement — is the number that carries
   weight downstream.
 
-## 8. Outcomes and decisions
+## 9. Outcomes and decisions
 
 *(to be filled as results land, as in `phase0-design.md` §7)*
+
+- **Effectiveness gate (§4).** Qwen nDCG@10 vs. BM25 on DL19 and DL20 (and MAP), with the
+  paired win/tie/loss counts and the flan-t5-large contrast: *(pending)*. Gate verdict —
+  pass (residual treated as skill; Phase 1 proceeds) or stop-and-fix: *(pending)*.
