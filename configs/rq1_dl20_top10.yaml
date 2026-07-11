@@ -1,0 +1,63 @@
+# RQ1 grid cell: DL20 × top-10 all-pairs (primary condition), both rankers
+# (phase1-plan.md §2–3). The replication collection: does the DL19 agreement
+# profile generalise across query sets?
+experiment: rq1_lexical_agreement
+variant: dl20_top10
+seed: 42
+primary_metric: fidelity
+
+dataset:
+  irds_id: msmarco-passage/trec-dl-2020/judged
+  hf_artifact: pyterrier/msmarco-passage.terrier
+
+first_stage:
+  retriever: bm25
+  pool_depth: 100
+
+pairs:
+  strategy: top_k_all_pairs
+  k: 10
+
+rankers:
+  - backend: openai
+    model: models/qwen3.6-35B-A3B-AWQ   # the id the server reports at /v1/models
+    base_url: http://localhost:9086/v1
+    prompt_version: v1
+    order_swap: true
+    max_chars: 2000
+    extra_body:
+      chat_template_kwargs:
+        enable_thinking: false          # thinking tokens first would break logprob scoring
+  - backend: hf
+    model: google/flan-t5-large
+    prompt_version: v0
+    order_swap: true
+    max_chars: 2000
+
+axioms:
+  # Same extended battery as rq1_dl19_top10.yaml (strict core + additions + relaxed).
+  lexical:
+    - TFC1
+    - TFC3
+    - M-TDC
+    - LNC1
+    - TF-LNC
+    - PROX1
+    - PROX2
+    - PROX3
+    - PROX4
+    - PROX5
+    - AND
+    - DIV
+    - LB1
+    - {name: TFC1, alias: TFC1@len0.2, params: {precondition_margin: 0.2}}
+    - {name: TFC1, alias: TFC1@len0.5, params: {precondition_margin: 0.5}}
+    - {name: TFC3, alias: TFC3@len0.2, params: {precondition_margin: 0.2}}
+    - {name: TFC3, alias: TFC3@len0.5, params: {precondition_margin: 0.5}}
+    - {name: LNC1, alias: LNC1@tf0.2, params: {margin_fraction: 0.2}}
+    - {name: LNC1, alias: LNC1@tf0.5, params: {margin_fraction: 0.5}}
+    - {name: TF-LNC-R, alias: TF-LNC@len0.1, params: {margin_fraction: 0.1}}
+    - {name: TF-LNC-R, alias: TF-LNC@len0.3, params: {margin_fraction: 0.3}}
+    - {name: M-TDC-R, alias: M-TDC@mass0.1, params: {margin_fraction: 0.1}}
+    - {name: M-TDC-R, alias: M-TDC@mass0.3, params: {margin_fraction: 0.3}}
+  semantic: []
