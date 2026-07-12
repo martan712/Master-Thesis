@@ -1,0 +1,13 @@
+# RQ4 (Phase 3): do the residual-seed axioms VERB/QCOV capture the residual and help
+# reranking? Reads the two rq2 top-10 cells' cached verdicts and axiom preferences (now
+# carrying the appended VERB/QCOV/VERB@m0.2 columns) — zero model calls. The decomposition
+# arm pools the two cells (query ids namespaced by collection so CV folds stay clean); the
+# reranking arm evaluates each collection separately against its qrels.
+experiment: rq4_axioms
+variant: pooled_top10
+seed: 42
+primary_metric: fidelity
+
+sources:
+  - configs/rq2_dl19_top10.yaml
+  - configs/rq2_dl20_top10.yaml

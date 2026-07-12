@@ -67,6 +67,12 @@ axioms:
     - {name: TF-LNC-R, alias: TF-LNC@len0.3, params: {margin_fraction: 0.3}}
     - {name: M-TDC-R, alias: M-TDC@mass0.1, params: {margin_fraction: 0.1}}
     - {name: M-TDC-R, alias: M-TDC@mass0.3, params: {margin_fraction: 0.3}}
+    # RQ4 residual-seed axioms (phase3-design.md §1). New columns only — appended so the
+    # decomposition can compare classical vs classical+{VERB,QCOV}; existing axiom and
+    # verdict columns are untouched (append-only). VERB_R@m0.2 is the relaxed VERB variant.
+    - VERB
+    - QCOV
+    - {name: VERB_R, alias: VERB@m0.2, params: {margin_fraction: 0.2}}
   semantic:
     - {name: STMC1, alias: STMC1@wn, params: {similarity: wordnet}}
     - {name: STMC2, alias: STMC2@wn, params: {similarity: wordnet}}

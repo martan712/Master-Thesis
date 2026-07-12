@@ -21,13 +21,17 @@ def coerce_spec(spec: AxiomSpec | str) -> AxiomSpec:
 
 
 def _factory(name: str):
-    """Resolve an axiom factory: our relaxed variants first, then ir_axioms."""
-    from axiomrank.axioms import relaxed
+    """Resolve an axiom factory: our rq4/relaxed variants first, then ir_axioms."""
+    from axiomrank.axioms import relaxed, rq4
 
     import ir_axioms.axiom as ax
 
     normalised = _normalise(name)
-    factory = getattr(relaxed, normalised, None) or getattr(ax, normalised, None)
+    factory = (
+        getattr(rq4, normalised, None)
+        or getattr(relaxed, normalised, None)
+        or getattr(ax, normalised, None)
+    )
     if factory is None:
         raise ValueError(f"Unknown axiom: {name}")
     return factory
