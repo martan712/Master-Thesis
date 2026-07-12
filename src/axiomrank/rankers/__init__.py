@@ -14,7 +14,11 @@ def make_ranker(cfg) -> PairwiseRanker:
         if not cfg.model:
             raise ValueError("ranker.model must be set for the hf backend")
         return HFPairwiseRanker(
-            model_name=cfg.model, prompt_version=cfg.prompt_version, max_chars=cfg.max_chars
+            model_name=cfg.model,
+            prompt_version=cfg.prompt_version,
+            max_chars=cfg.max_chars,
+            device=cfg.device,
+            dtype=cfg.dtype,
         )
     if cfg.backend == "openai":
         from axiomrank.rankers.openai_api import OpenAIPairwiseRanker

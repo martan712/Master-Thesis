@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from axiomrank.config import AxiomsConfig, load_config
+from axiomrank.config import AxiomsConfig, RankerConfig, load_config
 
 CONFIGS_DIR = Path(__file__).parent.parent / "configs"
 
@@ -53,6 +53,27 @@ rankers:
     cfg = load_config(single)
     assert cfg.variant is None
     assert cfg.all_rankers == [cfg.ranker]
+
+
+def test_ranker_device_dtype_default_to_cpu_fp32(tmp_path):
+    # Existing configs must stay byte-for-byte reproducible: the new fields default to the
+    # historical CPU/fp32 behaviour, and are only overridden by an explicit hf/GPU rung.
+    assert RankerConfig().device == "cpu"
+    assert RankerConfig().dtype == "float32"
+
+    cfg_path = tmp_path / "gpu.yaml"
+    cfg_path.write_text(
+        """
+experiment: t
+rankers:
+  - backend: hf
+    model: google/flan-t5-xl
+    device: cuda
+    dtype: bfloat16
+"""
+    )
+    ranker = load_config(cfg_path).all_rankers[0]
+    assert (ranker.device, ranker.dtype) == ("cuda", "bfloat16")
 
 
 def test_grid_configs_parse_with_unique_columns():

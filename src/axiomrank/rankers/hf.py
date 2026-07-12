@@ -31,6 +31,7 @@ class HFPairwiseRanker(PairwiseRanker):
     prompt_version: str = "v0"
     max_chars: int = 2000
     device: str = "cpu"
+    dtype: str = "float32"  # "bfloat16" for T5 on GPU; fp16 overflows T5 activations to NaN
     _bundle: tuple = field(init=False, repr=False, default=None)
 
     @property
@@ -55,7 +56,12 @@ class HFPairwiseRanker(PairwiseRanker):
             config = AutoConfig.from_pretrained(self.model_name)
             cls = AutoModelForSeq2SeqLM if config.is_encoder_decoder else AutoModelForCausalLM
             tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            model = cls.from_pretrained(self.model_name).to(self.device).eval()
+            torch_dtype = getattr(torch, self.dtype)
+            model = (
+                cls.from_pretrained(self.model_name, torch_dtype=torch_dtype)
+                .to(self.device)
+                .eval()
+            )
             self._bundle = (torch, tokenizer, model, config.is_encoder_decoder)
         return self._bundle
 
