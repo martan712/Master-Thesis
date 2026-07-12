@@ -73,30 +73,22 @@ changed under the corrected residual analysis.
 
 ## 6. Evaluation (`experiments/rq4_axioms/run.py`, `configs/rq4_axioms.yaml`)
 
-A dedicated runner rather than re-running `rq3_decomposition/run.py`. Rationale: the rq3
-runner's single "lexical" feature set is now the *augmented* battery, so it cannot produce
-the **paired** classical-vs-augmented comparison with a bootstrap CI on the lift that the
-design asks for; re-running it would also clobber the Phase 2 baseline artefact under
-`results/rq3_decomposition/`. The new runner reuses the same pooling (`merged_cell_frame`,
-collection-namespaced query ids) and `analysis.decompose`. Two arms:
+A dedicated runner preserves the Phase 2 baseline and makes the RQ4 comparison model-specific.
+It reuses `merged_cell_frame`, namespaces queries by query set, assigns one common query-disjoint
+fold map, and fits four variants: classical, +VERB, +QCOV and +both. Training uses decisive
+preferences from training queries; every held-out top-10 pair receives an OOF probability and
+preference before qrels are loaded.
 
-1. **Capture.** Per ranker, `decompose` on the classical lexical battery (full rq2 battery
-   minus the degenerate columns and minus the RQ4 columns) and on classical + {VERB, QCOV},
-   on the same query-grouped folds. Reports CV accuracy, normalised log-loss gain and the
-   fitted VERB/QCOV coefficients, plus two paired lifts with 2000-draw
-   query-bootstrap CIs: the OOF **accuracy** lift and the per-pair **log-loss** lift (the
-   information view Phase 2 §3.1 treated as the honest figure). VERB_R is carried in the
-   cache as an auxiliary variant but is not in the {VERB, QCOV} headline pair.
-2. **Reranking.** Per collection, the axiom battery is aggregated into a per-pair preference
-   by **majority vote** (`sign` of the column sum — the canonical untuned ir_axioms
-   aggregate), Copeland-ranked (`ranking.copeland_ranking`) and scored against the qrels.
-   nDCG@10 / MAP, classical-only vs classical + {VERB, QCOV}, with a paired query-bootstrap
-   CI on the per-query lift. The restructured RQ4 report also places these arms in the absolute,
-   depth-matched BM25/LLM/classical/extended nDCG@10 and MAP table; the oracle ceiling is context,
-   not a reason to omit absolute effectiveness.
+The runner then reconstructs BM25, LLM, fitted-variant and untuned-vote runs. Majority vote is a
+transparency diagnostic, not the primary RQ4 test. Paired 10,000-draw query bootstraps compare
+each fitted variant with BM25 and the LLM and evaluate the nested VERB/QCOV ablations. Pairwise
+fidelity, explicit/forced ties, coefficients, fold assignments, per-query metrics and remaining-
+gap profiles are persisted alongside the runs.
 
-Outputs: `results/rq4_axioms/pooled_top10/metrics/<model>/capture.json` and
-`.../reranking.json`.
+Outputs under `results/rq4_axioms/pooled_top10/metrics/<model>/` include
+`pair_predictions.parquet`, `folds.csv`, `surrogate_models.json`, `runs.parquet`,
+`effectiveness_per_query.csv`, `effectiveness.json`, `new_axiom_agreement.csv`, `capture.json`
+and `residual_profiles.csv`.
 
 ## 7. Reranking effectiveness and the fitted pairwise-axiom baseline
 
@@ -161,3 +153,15 @@ The remaining work for the full `phase3-design.md` protocol is:
 
 RQ5 begins only after a separate implementation proves which retained features decompose into
 per-document values, scores each document once, and measures latency/call/FLOP savings.
+
+## 11. Qualitative reversal resource
+
+`experiments/rq4_qualitative/run.py` selects development cases where Qwen reverses a BM25 pair in
+the qrel-improving direction and the final query nDCG@10 increases. It makes no model calls and
+writes the complete candidate table and inspection packets under
+`results/rq4_axioms/pooled_top10/qualitative/`.
+
+The manual synthesis is tracked in `phase3-qualitative-casebook.md`, with machine-readable labels
+in `resources/phase3-qualitative-case-annotations.csv`. The first run found 583 contributory
+reversals; thirteen primary cases and two cautionary cases motivated QARA, CBP, QCS and a typed
+specificity refinement. These remain retrospective development hypotheses.

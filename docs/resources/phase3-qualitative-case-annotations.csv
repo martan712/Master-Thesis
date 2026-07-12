@@ -1,0 +1,16 @@
+case_id,collection,query_id,winner_doc,loser_doc,pattern,primary_candidate,cross_model_status,classical_support,caution
+C01,dl20_top10,156498,3301559,5606985,requested relation vs manual-save instructions,QARA,consensus,opposes,direct answer may still be factually wrong
+C02,dl19_top10,1114646,5417954,8117093,drug indication vs safety caution,QARA,consensus,opposes,medical relation extraction requires high precision
+C03,dl19_top10,405717,3033900,6654655,geographic answer vs shuttle advertising,QARA+CBP,consensus,opposes,query wording is informal and main Paris is vague
+C04,dl19_top10,1063750,4337526,4788295,causal explanation vs timeline discussion,Causal Adequacy,consensus,opposes,causal-marker density alone is insufficient
+C05,dl20_top10,1051399,69818,2845499,named answer vs search-term boilerplate,QARA+CBP,consensus,supports,near-duplicate answer text may inflate apparent confidence
+C06,dl20_top10,324585,8290314,7941125,numeric answer with units vs generic income discussion,TSC,consensus,opposes,dated salary values can become stale
+C07,dl20_top10,118440,1569786,1445681,acronym expansion and definition vs citation metadata,TSC+CBP,consensus,supports,acronyms are domain ambiguous
+C08,dl20_top10,914916,2631739,8129165,answer-type tissue class vs disease mention,QARA+TSC,Qwen/large consensus; XL tie,supports,biomedical typing needs domain coverage
+C09,dl20_top10,877809,1550613,35109,enumerated materials vs generic metal statement,TSC,Qwen/XL consensus; large tie,supports,long lists can add irrelevant items
+C10,dl20_top10,1122767,4550504,1575377,biosynthetic relation vs incidental mention,QARA,consensus,opposes,scientific factuality is not independently verified
+C11,dl20_top10,997622,4518222,5430574,filming location vs title disambiguation,QARA+QCS+CBP,consensus,opposes,must distinguish filmed from set
+C12,dl20_top10,911232,8816620,2999933,character-specific conflict vs generic story comparison,QCS+Causal Adequacy,consensus,opposes,literary interpretation may permit multiple answers
+C13,dl20_top10,1121353,8053112,8053113,jurisdiction-specific action vs legal navigation list,QCS+CBP,consensus,opposes,local legal advice is temporally unstable
+X01,dl19_top10,1037798,3641634,8760867,under-specified entity sense,ambiguity abstention,Qwen only,opposes,qrels encode an intent absent from the query
+X02,dl20_top10,258062,4595795,2707010,explicit duration in informal answer,TSC,Qwen only,opposes,answer-shaped specificity is not evidence quality

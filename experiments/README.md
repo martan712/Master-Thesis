@@ -10,6 +10,7 @@ rq2_semantic_agreement/   Phase 1 — semantic axioms added
 ranking_effectiveness/    Phase 1 — depth-matched effectiveness reference vs BM25
 rq3_decomposition/        Phase 2 — combined axiom model + residual analysis
 rq4_axioms/               Phase 3 — fitted new-axiom capture, reranking, and ablation
+rq4_qualitative/          Phase 3 — reproducible selection packets for manual reversal analysis
 rq5_surrogate/            Transitional fitted pairwise-surrogate preview (not yet RQ5)
 rq6_cascade/              Phase 4 — selective cascade (stretch)
 ```

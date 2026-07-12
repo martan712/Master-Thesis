@@ -220,3 +220,18 @@ they are not part of the commit sequence listed in §1:
 - Tier-B LLM judges are diagnostic operationalisations, not literal oracles/upper bounds.
 - RQ5 begins only with features proven to decompose into per-document scores and measured once per
   document.
+
+## 10. Qualitative relevance-improving reversal study
+
+On 2026-07-13, a cache-only selector joined Qwen pair preferences, final Copeland ranks, BM25,
+qrels and axiom predictions. It found 583 pair reversals satisfying a deliberately outcome-
+conditioned development rule: the query nDCG@10 improved, Qwen decisively preferred the
+higher-grade passage, BM25 had ranked that passage lower, and the final Qwen run reversed the
+pair. These are labelled *contributory reversals*, not causal edge effects.
+
+A purposive reading sample was stored in `phase3-qualitative-casebook.md`. Repeated distinctions
+were requested-relation satisfaction, answer-bearing prose rather than boilerplate, typed
+specificity/completeness, and correct binding of query qualifiers and roles. They motivated the
+development candidates QARA, CBP and QCS and a typed refinement of Specificity. Ambiguous-entity
+and answer-shaped-but-unreliable cases were retained as cautions. Because selection and coding use
+DL19/DL20 and one unblinded analyst, no candidate was promoted to validated status.

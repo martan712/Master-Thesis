@@ -49,15 +49,36 @@ or prior diagnostics. Each registry entry fixes:
 
 These were proposed after inspecting DL19/DL20 and are retrospective development candidates.
 
-### 3.2 Theory-led candidate menu
+### 3.2 Qualitative reversal study
+
+The development-only [`phase3-qualitative-casebook.md`](phase3-qualitative-casebook.md) examines
+thirteen purposively sampled pairs from 583 relevance-improving Qwen reversals. It adds three
+retrospective candidate families to the registry. They are hypotheses, not evidence that the
+corresponding axioms work:
+
+- **QARA — Query–Answer Relation Alignment:** prefer evidence that instantiates the relation or
+  answer type requested by the query, rather than merely sharing its topic;
+- **CBP — Content-Bearing Passage preference:** prefer complete answer-bearing prose over
+  navigation, search-term, citation or advertising boilerplate;
+- **QCS — Query-Constraint Satisfaction:** prefer passages that bind important entity,
+  geographic, temporal and role qualifiers in one local proposition.
+
+Typed Specificity and Completeness (TSC) is recorded as a refinement of the existing Specificity
+and Aspect Completeness family rather than a wholly separate construct.
+
+### 3.3 Candidate menu
 
 | family | candidate | tier | operationalisation |
 |---|---|---|---|
 | coverage | Semantic Intent Coverage | A | aggregate maximum query-aspect-to-sentence embedding similarity |
 | coverage | Aspect Completeness | B | judge-based query-aspect decomposition and coverage comparison |
+| relation alignment | QARA | A | query-intent/answer-type classification plus sentence-level evidence for the requested relation |
+| content quality | CBP | A | complete-sentence evidence minus navigation, duplicate-fragment and boilerplate signals |
+| constraint satisfaction | QCS | A | local binding of query entities, roles, locations, times and other qualifiers |
 | focus | Semantic Focus / Distraction | A | distribution of sentence-to-query similarity; penalise off-topic mass |
 | focus | Redundancy Penalty | A | intra-document sentence-similarity redundancy |
 | specificity | Specificity | A | IDF-weighted content density, named entities and numerals |
+| specificity | Typed Specificity and Completeness | A | question-conditioned compatible values, classes, units or enumerated items |
 | explanation | Causal/Explanatory Adequacy | B | judge comparison restricted to why/how information needs |
 | directness | Answer Localisation | A | normalised position of peak query-relevant sentence |
 | grounding | Evidence Support | A | prespecified citation, quotation and numerical-evidence signals |
