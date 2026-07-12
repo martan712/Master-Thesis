@@ -54,3 +54,11 @@ def test_rejects_bad_verdict_and_missing_columns(tmp_path):
         store.append(pd.DataFrame([bad]))
     with pytest.raises(ValueError, match="missing"):
         store.append(pd.DataFrame([{"dataset": "ds"}]))
+
+
+def test_protocol_manifest_rejects_silent_key_reuse(tmp_path):
+    store = PreferenceStore(tmp_path)
+    store.register_protocol("m", "v0", {"max_chars": 2000})
+    store.register_protocol("m", "v0", {"max_chars": 2000})  # idempotent
+    with pytest.raises(ValueError, match="bump prompt_version"):
+        store.register_protocol("m", "v0", {"max_chars": 1000})

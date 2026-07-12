@@ -28,7 +28,13 @@ def merged_cell_frame(
     pairs = stages.build_pairs(cfg, pool, refresh)
     axiom_df = stages.build_axiom_prefs(cfg, pool, pairs, refresh)
 
-    store_df = collect.collect_verdicts(cfg.dataset.irds_id, ranker_cfg, pairs, PreferenceStore())
+    store_df = collect.collect_verdicts(
+        cfg.dataset.irds_id,
+        ranker_cfg,
+        pairs,
+        PreferenceStore(),
+        allow_new=False,
+    )
     verdicts = analysis.model_pair_verdicts(store_df)
     merged = analysis.merge_pairs(axiom_df, verdicts)
     merged = analysis.attach_rank_gap(merged, pool)

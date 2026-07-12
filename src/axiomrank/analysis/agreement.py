@@ -19,7 +19,18 @@ N_BOOTSTRAP = 2000
 
 def merge_pairs(axiom_prefs: pd.DataFrame, verdicts: pd.DataFrame) -> pd.DataFrame:
     """Join axiom preferences and collapsed model verdicts on the canonical pair key."""
-    return axiom_prefs.rename(columns={"qid": "query_id"}).merge(verdicts, on=PAIR_KEY)
+    left = axiom_prefs.rename(columns={"qid": "query_id"})
+    merged = left.merge(
+        verdicts,
+        on=PAIR_KEY,
+        how="outer",
+        validate="one_to_one",
+        indicator=True,
+    )
+    if not (merged["_merge"] == "both").all():
+        counts = merged["_merge"].value_counts().to_dict()
+        raise ValueError(f"axiom/verdict pair keys do not match exactly: {counts}")
+    return merged.drop(columns="_merge")
 
 
 def attach_rank_gap(pairs_or_merged: pd.DataFrame, pool: pd.DataFrame) -> pd.DataFrame:
@@ -29,7 +40,14 @@ def attach_rank_gap(pairs_or_merged: pd.DataFrame, pool: pd.DataFrame) -> pd.Dat
     ranks = pool[["qid", "docno", "rank"]].rename(columns={"qid": qid_col})
     for side in ("1", "2"):
         side_ranks = ranks.rename(columns={"docno": f"doc_id_{side}", "rank": f"rank_{side}"})
-        df = df.merge(side_ranks, on=[qid_col, f"doc_id_{side}"], how="left")
+        df = df.merge(
+            side_ranks,
+            on=[qid_col, f"doc_id_{side}"],
+            how="left",
+            validate="many_to_one",
+        )
+    if df[["rank_1", "rank_2"]].isna().any().any():
+        raise ValueError("one or more sampled documents are missing from the retrieval pool")
     df["rank_gap"] = (df["rank_1"] - df["rank_2"]).abs()
     return df
 

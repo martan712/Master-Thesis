@@ -78,10 +78,9 @@ Everything lands in small, pointed commits following the repo convention.
 
 ## 5. Runbook: finishing Phase 0
 
-State as of 2026-07-11: items 1–7 above are **done** — pipeline implemented, 13 tests
-passing, SciFact smoke run validated end-to-end, verdict caching confirmed. What remains
-is executing the DL19 pilot. The big downloads were cancelled mid-way; everything below
-resumes where it left off (HF downloads are resumable, the verdict store is incremental).
+Final Phase 0 state (2026-07-11): the pipeline, smoke test, sanity gates and DL19 pilot are
+complete. The commands below are the executed/reproduction runbook, not outstanding work;
+scientific outcomes are in `phase0-design.md` §6; corrections are in `research-logbook.md`.
 
 ### 5.1 Get the data
 
@@ -107,7 +106,7 @@ resumes where it left off (HF downloads are resumable, the verdict store is incr
   candidate model must pass the 4-way order-swap check — two obvious relevant/irrelevant
   pairs, each in both presentation orders. flan-t5-small chose "Passage A" in all cases
   (pure position bias). Expected CPU latency: base ~0.5 s/call (~45 min for the full
-  pilot), large ~2 s/call (~2.5 h). (Gate results in `phase0-design.md` §7.1.)
+  pilot), large ~2 s/call (~2.5 h). (Results are in `phase0-design.md` §6.1.)
 
 ### 5.3 The primary ranker: Qwen3.6-35B-A3B via local endpoint
 
@@ -122,7 +121,7 @@ resumes where it left off (HF downloads are resumable, the verdict store is incr
      preamble; label-logprob scoring silently breaks if thinking tokens come first.
 - The same 4-way sanity gate applies before full collection.
 
-### 5.4 Run the pilot (the actual milestone)
+### 5.4 Reproduce the pilot
 
 1. `uv run python experiments/p0_pilot/run.py --config configs/pilot.yaml` with
    `ranker.model: google/flan-t5-base` (or large) for the local contrast run —
@@ -130,11 +129,10 @@ resumes where it left off (HF downloads are resumable, the verdict store is incr
 2. Same command with the Qwen backend config for the primary run. The store keys on
    (model, prompt_version), so all models coexist; re-runs cost nothing.
 3. Outputs land in `results/p0_pilot/` (agreement.csv, consistency.json per run). Check
-   the exit criteria (`phase0-design.md` §2) and read the numbers against the open
-   questions (`phase0-design.md` §5): position-consistency per model, axiom coverage
+   the exit criteria (`phase0-design.md` §5) and inspect position consistency and axiom coverage
    (watch the strict-precondition axioms), non-transitivity rate, and the latency
    bookkeeping for the RQ5/6 efficiency baseline.
-4. Decide and record in `phase0-design.md` §7: pilot model verdict, sampling scale for
+4. Record in `phase0-design.md` §6: pilot model outcome, sampling scale for
    Phase 1, and whether STMC axioms enter the battery (measure their fastText download
    first).
 

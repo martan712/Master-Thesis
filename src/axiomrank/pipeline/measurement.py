@@ -25,11 +25,16 @@ def measure_cell(
     gap_feature_set: str,
     refresh: bool = False,
     only_model: str | None = None,
+    analysis_columns: list[str] | None = None,
 ) -> None:
     processed = stages.processed_dir(cfg)
     out = stages.output_dir(cfg)
     dump_config(cfg, out / "config.yaml")
-    names = [s.column for s in cfg.axioms.specs]
+    configured_names = [s.column for s in cfg.axioms.specs]
+    names = configured_names if analysis_columns is None else analysis_columns
+    unknown = set(names) - set(configured_names)
+    if unknown:
+        raise ValueError(f"analysis columns are not configured axioms: {sorted(unknown)}")
 
     print(f"[1/4] BM25 pool ({cfg.dataset.irds_id}, depth {cfg.first_stage.pool_depth})")
     pool = stages.build_pool(cfg, refresh)

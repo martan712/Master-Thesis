@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from axiomrank.analysis import (
     agreement_table,
@@ -43,15 +44,34 @@ def test_verdict_collapse_consistent_and_inconsistent():
     assert v.loc[("d1", "d2"), "position_consistent"] == True  # noqa: E712
     assert v.loc[("d1", "d3"), "model_pref"] == 0
     assert v.loc[("d1", "d3"), "position_consistent"] == False  # noqa: E712
+    assert v.loc[("d1", "d3"), "collapse_reason"] == "order_disagreement"
     # (d4, d2) canonicalises to (d2, d4); "b" with d4 shown first means d2 preferred -> ...
     # d2 < d4, presentation was (a=d4, b=d2), verdict "b" = d2 preferred = doc_id_1 -> +1
     assert v.loc[("d2", "d4"), "model_pref"] == 1
     assert pd.isna(v.loc[("d2", "d4"), "position_consistent"])
+    assert v.loc[("d2", "d4"), "collapse_reason"] == "decisive"
 
     stats = consistency_stats(model_pair_verdicts(store))
     assert stats["n_pairs"] == 3
     assert stats["n_pairs_both_orders"] == 2
     assert stats["position_consistency"] == 0.5
+    assert stats["n_order_disagreements"] == 1
+    assert stats["n_model_ties"] == 0
+
+
+def test_explicit_model_tie_is_distinguished_from_order_disagreement():
+    store = pd.DataFrame(
+        [
+            presentation("q1", "d1", "d2", "tie"),
+            presentation("q1", "d2", "d1", "tie"),
+        ]
+    )
+    verdicts = model_pair_verdicts(store)
+    assert verdicts.loc[0, "model_pref"] == 0
+    assert verdicts.loc[0, "collapse_reason"] == "model_tie"
+    stats = consistency_stats(verdicts)
+    assert stats["n_model_ties"] == 1
+    assert stats["n_order_disagreements"] == 0
 
 
 def test_agreement_table_counts_only_active_and_decisive():
@@ -79,6 +99,21 @@ def test_agreement_table_counts_only_active_and_decisive():
     assert table.loc["AX2", "coverage"] == 1 / 3
     assert table.loc["AX2", "n_evaluable"] == 1
     assert table.loc["AX2", "agreement"] == 1.0
+
+
+def test_merge_pairs_rejects_missing_or_duplicate_pair_keys():
+    verdicts = pd.DataFrame(
+        {"query_id": ["q1"], "doc_id_1": ["a"], "doc_id_2": ["b"], "model_pref": [1]}
+    )
+    missing = pd.DataFrame(
+        {"qid": ["q1"], "doc_id_1": ["a"], "doc_id_2": ["c"], "AX": [1]}
+    )
+    with pytest.raises(ValueError, match="do not match exactly"):
+        agreement_table(missing, verdicts, ["AX"])
+
+    duplicated = pd.concat([missing, missing], ignore_index=True)
+    with pytest.raises(pd.errors.MergeError):
+        agreement_table(duplicated, verdicts, ["AX"])
 
 
 def test_nontransitivity_detects_cycle():

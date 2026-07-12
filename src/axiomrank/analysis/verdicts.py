@@ -29,7 +29,12 @@ def model_pair_verdicts(store_df: pd.DataFrame) -> pd.DataFrame:
         prefs = group["pref"].tolist()
         if len(prefs) == 1:
             return pd.Series(
-                {"model_pref": prefs[0], "n_presentations": 1, "position_consistent": pd.NA}
+                {
+                    "model_pref": prefs[0],
+                    "n_presentations": 1,
+                    "position_consistent": pd.NA,
+                    "collapse_reason": "model_tie" if prefs[0] == 0 else "decisive",
+                }
             )
         consistent = len(set(prefs)) == 1
         return pd.Series(
@@ -37,6 +42,11 @@ def model_pair_verdicts(store_df: pd.DataFrame) -> pd.DataFrame:
                 "model_pref": prefs[0] if consistent else 0,
                 "n_presentations": len(prefs),
                 "position_consistent": consistent,
+                "collapse_reason": (
+                    "order_disagreement"
+                    if not consistent
+                    else ("model_tie" if prefs[0] == 0 else "decisive")
+                ),
             }
         )
 
@@ -47,6 +57,11 @@ def model_pair_verdicts(store_df: pd.DataFrame) -> pd.DataFrame:
 
 def consistency_stats(verdicts: pd.DataFrame) -> dict:
     both = verdicts[verdicts["n_presentations"] >= 2]
+    reasons = (
+        verdicts["collapse_reason"].value_counts()
+        if "collapse_reason" in verdicts
+        else pd.Series(dtype=int)
+    )
     return {
         "n_pairs": int(len(verdicts)),
         "n_pairs_both_orders": int(len(both)),
@@ -54,4 +69,6 @@ def consistency_stats(verdicts: pd.DataFrame) -> dict:
             float(both["position_consistent"].mean()) if len(both) else None
         ),
         "decisive_rate": float((verdicts["model_pref"] != 0).mean()) if len(verdicts) else None,
+        "n_order_disagreements": int(reasons.get("order_disagreement", 0)),
+        "n_model_ties": int(reasons.get("model_tie", 0)),
     }

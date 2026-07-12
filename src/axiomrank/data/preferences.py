@@ -7,6 +7,9 @@ treat it as expensive.
 """
 
 import uuid
+import fcntl
+import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -28,6 +31,35 @@ class PreferenceStore:
 
     def _part_files(self) -> list[Path]:
         return sorted(self.root.glob("part-*.parquet"))
+
+    def register_protocol(
+        self, model: str, prompt_version: str, signature: dict
+    ) -> None:
+        """Bind a human-readable prompt version to its full scoring protocol.
+
+        Verdict rows historically key on ``(model, prompt_version)``. Without this
+        manifest, changing truncation, dtype, prompt text, endpoint options, or backend
+        could silently reuse incompatible rows. Existing stores are migrated by trusting
+        the first current configuration once; subsequent conflicts fail loudly.
+        """
+        path = self.root / "protocols.json"
+        lock_path = self.root / ".protocols.lock"
+        with open(lock_path, "a+") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            protocols = json.loads(path.read_text()) if path.exists() else {}
+            key = json.dumps([model, prompt_version], separators=(",", ":"))
+            existing = protocols.get(key)
+            if existing is not None and existing != signature:
+                raise ValueError(
+                    f"preference protocol conflict for model={model!r}, "
+                    f"prompt_version={prompt_version!r}; bump prompt_version before collecting"
+                )
+            if existing is None:
+                protocols[key] = signature
+                tmp = path.with_name(f"{path.name}.tmp-{os.getpid()}")
+                tmp.write_text(json.dumps(protocols, indent=2, sort_keys=True) + "\n")
+                os.replace(tmp, path)
+            fcntl.flock(lock, fcntl.LOCK_UN)
 
     def load(
         self,
