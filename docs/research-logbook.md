@@ -17,6 +17,18 @@ All commit identifiers below are dated 2026-07-12.
 - The methodological audit and clean restructuring documented below occurred after those commits
   and was initially uncommitted workspace work.
 
+The audited replacement was committed on 2026-07-13 in phase order:
+
+- `801f76e` — add this scientific audit logbook;
+- `c4487eb` — correct the Phase 0 measurement and cache contract;
+- `f2b29a9` — correct Phase 1 baselines and effectiveness inference;
+- `c346168` — correct Phase 2 prediction, residual and scale interpretations;
+- `5df8c35` — rebuild RQ4 as the fitted axiom-development pipeline;
+- `bd3bf9a` — rebuild the overall thesis architecture around RQ4.
+
+The commit bodies state the superseded error and the replacement method. None carries a
+co-author trailer.
+
 These identifiers allow reconstruction of what was written and implemented, but do not by
 themselves establish that every criterion preceded every analysis.
 
