@@ -1,6 +1,6 @@
 """RQ5 preview: the fitted axiom-surrogate reranker (Phase 3 bridge, docs/phase3-design.md).
 
-The Phase 1 effectiveness gate showed the *untuned* axiom majority vote reranks BM25's top-10
+The Phase 1 effectiveness reference showed the *untuned* axiom majority vote reranks BM25's top-10
 to roughly BM25 itself (every axiom one equal vote). This asks the fair question instead: how
 far can a *weighted* axiom model get toward the LLM? Per LLM target, we fit an L2 logistic on
 the axiom battery to predict that model's pairwise verdicts — query-grouped out-of-fold, so a
@@ -25,7 +25,7 @@ import json
 import numpy as np
 import pandas as pd
 
-from axiomrank import analysis, paths, ranking
+from axiomrank import paths, ranking
 from axiomrank.config import dump_config, load_config
 from axiomrank.pipeline import merged_cell_frame, stages
 
@@ -53,27 +53,21 @@ def _boot_ci(delta: np.ndarray, seed: int) -> tuple[float, float]:
 
 
 def _surrogate_oof_pref(pooled: pd.DataFrame, features: list[str], seed: int) -> np.ndarray:
-    """Out-of-fold surrogate preference (+1/-1) for EVERY pair in `pooled`.
+    """Out-of-fold surrogate preference (-1/0/+1) for EVERY pair in `pooled`.
 
     Query-grouped folds; per fold, fit the same L2 logistic as the decomposition on the
     training queries' DECISIVE pairs, then predict P(doc_1 preferred) on ALL held-out pairs.
-    Hard sign of (p - 0.5) is the surrogate's Copeland preference.
+    Hard sign of (p - 0.5) is the surrogate's Copeland preference; an exact 0.5 is a tie.
     """
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.model_selection import GroupKFold
-
-    X = pooled[features].to_numpy(dtype=float)
-    pref = pooled["model_pref"].to_numpy()
-    groups = pooled["_nqid"].to_numpy()
-    prob = np.full(len(pooled), np.nan)
-
-    n_folds = min(5, len(np.unique(groups)))
-    for train, test in GroupKFold(n_splits=n_folds).split(X, pref, groups):
-        dec = train[pref[train] != 0]  # train only on the LLM's decisive pairs
-        y = pref[dec] > 0
-        clf = LogisticRegression(max_iter=1000, random_state=seed).fit(X[dec], y)
-        prob[test] = clf.predict_proba(X[test])[:, 1]
-    return np.where(prob >= 0.5, 1, -1).astype(int)
+    folds = ranking.assign_query_folds(pooled["_nqid"], n_folds=5)
+    predictions, _ = ranking.fit_oof_surrogate(
+        pooled,
+        features,
+        group_col="_nqid",
+        folds=folds,
+        seed=seed,
+    )
+    return predictions["surrogate_pref"].to_numpy(dtype=int)
 
 
 def _run_from_pref(frame: pd.DataFrame, pref: np.ndarray, pool, dataset_id, metrics):

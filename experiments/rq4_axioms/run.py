@@ -1,22 +1,10 @@
-"""RQ4 (Phase 3): capture test + reranking validation of the VERB/QCOV residual axioms.
+"""RQ4: fitted residual-seed axioms, fidelity, ablation, and reranking effectiveness.
 
-Two arms, both zero model calls (everything from the cached rq2 stages + preference store):
-
-1. **Capture (decomposition).** Pool the two DL19/DL20 top-10 cells and, per ranker, fit the
-   combined axiom model on (a) the classical lexical battery and (b) classical + {VERB, QCOV}
-   on the same query-grouped folds. Report CV accuracy, pseudo-R² and the reducible-residual
-   upper bound for each, plus the out-of-fold accuracy lift with a paired query-bootstrap CI
-   (phase3-design.md §2 step 3). Qwen is primary; flan-t5-large and flan-t5-xl replicate.
-
-2. **Reranking.** Per collection, aggregate the axiom battery into a per-pair preference by
-   majority vote (the canonical untuned ir_axioms aggregate = sign of the column sum), Copeland
-   it into a run, and evaluate nDCG@10 / MAP against the qrels — classical-only vs
-   classical + {VERB, QCOV}. Report the lift over the classical battery with a paired
-   query-bootstrap CI (phase3-design.md §2 step 4; §3.8 depth-ceiling: lift, not absolute nDCG).
-
-Usage:
-    uv run --no-sync python experiments/rq4_axioms/run.py --config configs/rq4_axioms.yaml
-    uv run --no-sync python experiments/rq4_axioms/run.py --config configs/rq4_axioms.yaml --only-model qwen
+For each LLM target, this zero-call experiment fits query-disjoint OOF axiom surrogates
+for four locked variants: classical, +VERB, +QCOV, and +both. It predicts every top-10
+pair, Copeland-aggregates those predictions, and compares BM25, the reconstructed LLM,
+the fitted variants, and an untuned vote diagnostic on nDCG@10/AP. Qrels are used only
+after every pair prediction has been fitted.
 """
 
 import argparse
@@ -30,222 +18,380 @@ from axiomrank.analysis import PAIR_KEY
 from axiomrank.config import dump_config, load_config
 from axiomrank.pipeline import merged_cell_frame, stages
 
-# Degenerate columns dropped from the classical feature set (matches rq3 runner).
 DEGENERATE = {"TFC1@len0.2", "TFC1@len0.5", "TFC3", "TFC3@len0.2", "TFC3@len0.5"}
-# The RQ4 axiom columns (excluded from "classical").
 RQ4_COLUMNS = {"VERB", "QCOV", "VERB@m0.2"}
-# The headline additions tested by the capture/reranking arms (VERB_R is auxiliary).
 NEW_AXIOMS = ["VERB", "QCOV"]
 
-N_BOOT = 2000
+CAPTURE_BOOTSTRAP = 2_000
+EFFECTIVENESS_BOOTSTRAP = 10_000
 
 
 def _classical_columns(source_cfg) -> list[str]:
     return [
-        s.column
-        for s in source_cfg.axioms.lexical_specs
-        if s.column not in DEGENERATE and s.column not in RQ4_COLUMNS
+        spec.column
+        for spec in source_cfg.axioms.lexical_specs
+        if spec.column not in DEGENERATE and spec.column not in RQ4_COLUMNS
     ]
 
 
-def _pool(source_cfgs, ranker_cfg):
-    """Pool the source cells, namespacing query ids by collection (as the rq3 runner does)."""
-    per_collection = {}
+def _feature_sets(classical: list[str]) -> dict[str, list[str]]:
+    """Locked nested variants for attribution of each proposed axiom."""
+    return {
+        "classical": classical,
+        "plus_verb": [*classical, "VERB"],
+        "plus_qcov": [*classical, "QCOV"],
+        "plus_both": [*classical, "VERB", "QCOV"],
+    }
+
+
+def _load_cells(source_cfgs, ranker_cfg) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
+    """Load model-specific pair frames while preserving collection-local query ids."""
+    cells = {}
+    parts = []
+    offset = 0
     for src in source_cfgs:
         collection = src.variant or src.dataset.irds_id.replace("/", "_")
         merged, _ = merged_cell_frame(src, ranker_cfg, refresh=False)
         merged = merged.assign(collection=collection)
-        merged["query_id"] = collection + ":" + merged["query_id"].astype(str)
-        per_collection[collection] = merged
-    return pd.concat(per_collection.values(), ignore_index=True), per_collection
+        merged["_group_id"] = collection + ":" + merged["query_id"].astype(str)
+        merged.index = pd.RangeIndex(offset, offset + len(merged))
+        offset += len(merged)
+        cells[collection] = merged
+        parts.append(merged)
+    return pd.concat(parts), cells
 
 
-def _bootstrap_ci(per_pair: np.ndarray, groups: np.ndarray, seed: int) -> tuple[float, float]:
-    """Query-grouped bootstrap 95% CI of a per-pair mean (resample query groups)."""
+def _query_bootstrap_ci(
+    values: np.ndarray, groups: np.ndarray, seed: int, n_bootstrap: int
+) -> tuple[float, float]:
+    """Cluster bootstrap of a pair-level mean, resampling whole queries."""
     rng = np.random.default_rng(seed)
     unique = np.unique(groups)
-    idx_by_group = {g: np.where(groups == g)[0] for g in unique}
-    boot = np.empty(N_BOOT)
-    for b in range(N_BOOT):
-        picked = rng.choice(unique, size=len(unique), replace=True)
-        rows = np.concatenate([idx_by_group[g] for g in picked])
-        boot[b] = per_pair[rows].mean()
-    return float(np.quantile(boot, 0.025)), float(np.quantile(boot, 0.975))
+    by_group = {group: np.where(groups == group)[0] for group in unique}
+    boot = np.empty(n_bootstrap)
+    for draw in range(n_bootstrap):
+        sampled = rng.choice(unique, size=len(unique), replace=True)
+        rows = np.concatenate([by_group[group] for group in sampled])
+        boot[draw] = values[rows].mean()
+    return tuple(float(x) for x in np.quantile(boot, [0.025, 0.975]))
 
 
-def _capture(pooled, classical_cols, pos_cons, seed) -> dict:
-    """Classical vs classical+{VERB,QCOV} decomposition, with paired OOF lift + CI."""
-    augmented_cols = classical_cols + NEW_AXIOMS
-    res_c, oof_c = analysis.decompose(pooled, classical_cols, pos_cons, seed=seed)
-    res_a, oof_a = analysis.decompose(pooled, augmented_cols, pos_cons, seed=seed)
+def _capture(pooled: pd.DataFrame, classical: list[str], seed: int) -> dict:
+    """Backward-compatible classical-vs-both fidelity decomposition."""
+    frame = pooled.copy()
+    frame["query_id"] = frame["_group_id"]
+    results = {}
+    oof = {}
+    for name, features in {"classical": classical, "plus_both": [*classical, *NEW_AXIOMS]}.items():
+        results[name], oof[name] = analysis.decompose(frame, features, seed=seed)
 
-    # Align the two OOF frames on the pair key (same decisive subset, same folds).
-    m = oof_c[[*PAIR_KEY, "oof_correct", "oof_prob", "y_true"]].merge(
-        oof_a[[*PAIR_KEY, "oof_correct", "oof_prob"]], on=PAIR_KEY, suffixes=("_c", "_a")
+    left = oof["classical"][[*PAIR_KEY, "oof_correct", "oof_prob", "y_true"]]
+    right = oof["plus_both"][[*PAIR_KEY, "oof_correct", "oof_prob"]]
+    paired = left.merge(
+        right,
+        on=PAIR_KEY,
+        suffixes=("_classical", "_plus_both"),
+        validate="one_to_one",
     )
-    lift = m["oof_correct_a"].astype(float).to_numpy() - m["oof_correct_c"].astype(float).to_numpy()
-    groups = m["query_id"].to_numpy()
-    ci_lo, ci_hi = _bootstrap_ci(lift, groups, seed)
+    accuracy_lift = (
+        paired["oof_correct_plus_both"].astype(float).to_numpy()
+        - paired["oof_correct_classical"].astype(float).to_numpy()
+    )
+    y = paired["y_true"].to_numpy(dtype=float)
 
-    # Per-pair log-loss (cross-entropy) lift: positive = augmented sharpens the probability.
-    # This is the information view Phase 2 treated as the honest figure (§3.1), and is more
-    # sensitive than the 0.5-thresholded accuracy lift.
-    eps = 1e-12
-    y = m["y_true"].astype(float).to_numpy()
-
-    def _ce(p):
-        p = np.clip(p, eps, 1 - eps)
+    def per_pair_loss(probability):
+        p = np.clip(np.asarray(probability, dtype=float), 1e-12, 1 - 1e-12)
         return -(y * np.log(p) + (1 - y) * np.log(1 - p))
 
-    ll_lift = _ce(m["oof_prob_c"].to_numpy()) - _ce(m["oof_prob_a"].to_numpy())
-    ll_lo, ll_hi = _bootstrap_ci(ll_lift, groups, seed)
+    logloss_lift = per_pair_loss(paired["oof_prob_classical"]) - per_pair_loss(
+        paired["oof_prob_plus_both"]
+    )
+    groups = paired["query_id"].to_numpy()
+    acc_ci = _query_bootstrap_ci(accuracy_lift, groups, seed, CAPTURE_BOOTSTRAP)
+    loss_ci = _query_bootstrap_ci(logloss_lift, groups, seed, CAPTURE_BOOTSTRAP)
 
-    def summary(res):
+    def summary(result):
         return {
-            "n_decisive_pairs": res["n_decisive_pairs"],
-            "base_rate": res["base_rate"],
-            "cv_accuracy": res["cv_accuracy"],
-            "cv_auc": res["cv_auc"],
-            "pseudo_r2": res["information"]["pseudo_r2"],
-            "reliability_ceiling": res["reliability_ceiling"],
-            "reducible_residual_upper": res["reducible_residual_upper"],
+            "features": result["features"],
+            "n_decisive_pairs": result["n_decisive_pairs"],
+            "cv_null_accuracy": result["cv_null_accuracy"],
+            "cv_accuracy": result["cv_accuracy"],
+            "cv_auc": result["cv_auc"],
+            "pseudo_r2": result["information"]["pseudo_r2"],
         }
 
     return {
-        "classical": summary(res_c),
-        "augmented": summary(res_a),
-        "cv_accuracy_lift": res_a["cv_accuracy"] - res_c["cv_accuracy"],
-        "pseudo_r2_lift": res_a["information"]["pseudo_r2"] - res_c["information"]["pseudo_r2"],
-        "oof_lift": float(lift.mean()),
-        "oof_lift_ci": [ci_lo, ci_hi],
-        "logloss_lift": float(ll_lift.mean()),
-        "logloss_lift_ci": [ll_lo, ll_hi],
-        "new_axiom_coefficients": {
-            k: res_a["coefficients"][k] for k in NEW_AXIOMS if k in res_a["coefficients"]
-        },
+        "classical": summary(results["classical"]),
+        "plus_both": summary(results["plus_both"]),
+        "oof_accuracy_lift": float(accuracy_lift.mean()),
+        "oof_accuracy_lift_ci": list(acc_ci),
+        "oof_logloss_lift": float(logloss_lift.mean()),
+        "oof_logloss_lift_ci": list(loss_ci),
     }
 
 
-def _vote_verdicts(axiom_df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
-    """Majority-vote aggregate of the axiom columns into a collapsed pair-verdict frame."""
-    votes = axiom_df[cols].sum(axis=1)
-    out = axiom_df[["qid", "doc_id_1", "doc_id_2"]].rename(columns={"qid": "query_id"}).copy()
-    out["model_pref"] = np.sign(votes).astype(int)
-    return out
+def _run_from_preferences(frame, preferences, pool) -> pd.DataFrame:
+    verdicts = frame[["query_id", "doc_id_1", "doc_id_2"]].copy()
+    verdicts["model_pref"] = np.asarray(preferences, dtype=int)
+    return ranking.copeland_ranking(verdicts, pool)
 
 
-def _rerank_metrics(axiom_df, pool, dataset_id, cols, metrics):
-    verdicts = _vote_verdicts(axiom_df, cols)
-    run = ranking.copeland_ranking(verdicts, pool)
-    return ranking.evaluate_run(run, dataset_id, metrics)
+def _comparison(baseline, candidate, metrics, seed) -> dict:
+    """Strict paired candidate-minus-baseline effectiveness comparison."""
+    _, summary = ranking.compare_runs(
+        baseline,
+        candidate,
+        metrics,
+        n_bootstrap=EFFECTIVENESS_BOOTSTRAP,
+        seed=seed,
+    )
+    return summary
 
 
-def _reranking(source_cfgs, seed) -> dict:
-    """Per-collection nDCG@10/MAP: classical-only vs classical+{VERB,QCOV} axiom aggregate."""
+def _variant_residual_profiles(
+    pooled: pd.DataFrame,
+    pair_predictions: pd.DataFrame,
+    variants,
+) -> pd.DataFrame:
+    """Binned remaining OOF error by locked covariate, variant, and decisive target.
+
+    Target ties are excluded because correctness relative to a binary surrogate is not
+    defined for them. All predictions are out of fold; this is a diagnostic view of the
+    held-out residual, not a refit on the error subset.
+    """
+    covariates = [
+        name for name in ("d_len", "d_qcov", "d_rank", "rank_gap")
+        if name in pooled.columns
+    ]
+    if not covariates:
+        return pd.DataFrame()
+    decisive = pair_predictions["target_pref"] != 0
+    rows = []
+    for variant in variants:
+        frame = pd.DataFrame(
+            {
+                "query_id": pair_predictions.loc[decisive, "group_id"],
+                "y_true": pair_predictions.loc[decisive, "target_pref"] > 0,
+                "oof_correct": pair_predictions.loc[decisive, f"{variant}_correct"].astype(bool),
+            }
+        )
+        for covariate in covariates:
+            frame[covariate] = pooled.loc[decisive, covariate]
+        profile = analysis.residual_profiles(frame, covariates)
+        profile.insert(0, "variant", variant)
+        rows.append(profile)
+    return pd.concat(rows, ignore_index=True)
+
+
+def _effectiveness_for_collection(
+    *,
+    collection: str,
+    src,
+    pool: pd.DataFrame,
+    frame: pd.DataFrame,
+    prediction_columns: pd.DataFrame,
+    feature_sets: dict[str, list[str]],
+    seed: int,
+) -> tuple[dict, pd.DataFrame, pd.DataFrame]:
+    """Evaluate all runs only after model-independent OOF predictions exist."""
     metrics = ranking.DEFAULT_METRICS
-    names = ranking.metric_names(metrics)
-    out = {}
+    metric_names = ranking.metric_names(metrics)
+
+    run_frames = {"bm25": pool[["qid", "docno", "rank", "score"]].copy()}
+    run_frames["llm"] = _run_from_preferences(frame, frame["model_pref"], pool)
+    vote = np.sign(frame[feature_sets["plus_both"]].sum(axis=1)).astype(int)
+    run_frames["untuned_vote"] = _run_from_preferences(frame, vote, pool)
+    for variant in feature_sets:
+        run_frames[variant] = _run_from_preferences(
+            frame, prediction_columns.loc[frame.index, f"{variant}_pref"], pool
+        )
+
+    per_query = {
+        name: ranking.evaluate_run(run, src.dataset.irds_id, metrics)
+        for name, run in run_frames.items()
+    }
+    means = {
+        name: {metric: float(scores[metric].mean()) for metric in metric_names}
+        for name, scores in per_query.items()
+    }
+
+    comparisons = {"llm_vs_bm25": _comparison(per_query["bm25"], per_query["llm"], metrics, seed)}
+    for variant in feature_sets:
+        comparisons[f"{variant}_vs_bm25"] = _comparison(
+            per_query["bm25"], per_query[variant], metrics, seed
+        )
+        comparisons[f"{variant}_vs_llm"] = _comparison(
+            per_query["llm"], per_query[variant], metrics, seed
+        )
+    comparisons["untuned_vote_vs_bm25"] = _comparison(
+        per_query["bm25"], per_query["untuned_vote"], metrics, seed
+    )
+    for candidate, baseline, label in (
+        ("plus_verb", "classical", "plus_verb_vs_classical"),
+        ("plus_qcov", "classical", "plus_qcov_vs_classical"),
+        ("plus_both", "plus_verb", "qcov_given_verb"),
+        ("plus_both", "plus_qcov", "verb_given_qcov"),
+    ):
+        comparisons[label] = _comparison(per_query[baseline], per_query[candidate], metrics, seed)
+
+    fidelity = {
+        variant: ranking.surrogate_fidelity(
+            prediction_columns.loc[frame.index].rename(
+                columns={
+                    f"{variant}_prob": "surrogate_prob",
+                    f"{variant}_pref": "surrogate_pref",
+                    f"{variant}_correct": "correct_on_decisive",
+                }
+            )[[
+                "group_id", "fold", "target_pref", "surrogate_prob",
+                "surrogate_pref", "correct_on_decisive",
+            ]]
+        )
+        for variant in feature_sets
+    }
+    diagnostics = {
+        "target_ties": int((frame["model_pref"] == 0).sum()),
+        "target_decisive": int((frame["model_pref"] != 0).sum()),
+        "untuned_vote_ties": int((vote == 0).sum()),
+        "untuned_vote_decisions": int((vote != 0).sum()),
+    }
+    if "collapse_reason" in frame:
+        diagnostics["target_collapse_reasons"] = {
+            str(reason): int(count)
+            for reason, count in frame["collapse_reason"].value_counts().items()
+        }
+
+    per_query_rows = []
+    for run_name, scores in per_query.items():
+        tagged = scores.copy()
+        tagged.insert(0, "run", run_name)
+        tagged.insert(0, "collection", collection)
+        per_query_rows.append(tagged)
+    persisted_runs = []
+    for run_name, run in run_frames.items():
+        tagged = run.copy()
+        tagged.insert(0, "run", run_name)
+        tagged.insert(0, "collection", collection)
+        persisted_runs.append(tagged)
+
+    report = {
+        "dataset": src.dataset.irds_id,
+        "means": means,
+        "comparisons": comparisons,
+        "fidelity": fidelity,
+        "tie_diagnostics": diagnostics,
+    }
+    return report, pd.concat(per_query_rows, ignore_index=True), pd.concat(persisted_runs, ignore_index=True)
+
+
+def _run_model(source_cfgs, ranker_cfg, out, seed):
+    model_name = ranker_cfg.model or "mock"
+    metrics_dir = out / "metrics" / model_name.replace("/", "__")
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+
+    pooled, cells = _load_cells(source_cfgs, ranker_cfg)
+    classical = _classical_columns(source_cfgs[0])
+    feature_sets = _feature_sets(classical)
+    folds = ranking.assign_query_folds(pooled["_group_id"], n_folds=5)
+
+    base_columns = ["collection", "query_id", "doc_id_1", "doc_id_2", "_group_id", "model_pref"]
+    if "collapse_reason" in pooled:
+        base_columns.append("collapse_reason")
+    pair_predictions = pooled[base_columns].rename(
+        columns={"_group_id": "group_id", "model_pref": "target_pref"}
+    ).copy()
+    pair_predictions["fold"] = folds
+    model_metadata = {}
+    for variant, features in feature_sets.items():
+        prediction, metadata = ranking.fit_oof_surrogate(
+            pooled,
+            features,
+            group_col="_group_id",
+            folds=folds,
+            seed=seed,
+        )
+        pair_predictions[f"{variant}_prob"] = prediction["surrogate_prob"]
+        pair_predictions[f"{variant}_pref"] = prediction["surrogate_pref"]
+        pair_predictions[f"{variant}_correct"] = prediction["correct_on_decisive"]
+        model_metadata[variant] = metadata
+
+    # Fit and prediction are complete before qrels-backed evaluation begins below.
+    effectiveness = {}
+    per_query_outputs = []
+    run_outputs = []
+    agreement_outputs = []
     for src in source_cfgs:
         collection = src.variant or src.dataset.irds_id.replace("/", "_")
+        frame = cells[collection]
         pool = stages.build_pool(src, refresh=False)
-        pairs = stages.build_pairs(src, pool, refresh=False)
-        axiom_df = stages.build_axiom_prefs(src, pool, pairs, refresh=False)
-        classical_cols = _classical_columns(src)
-
-        base = _rerank_metrics(axiom_df, pool, src.dataset.irds_id, classical_cols, metrics)
-        aug = _rerank_metrics(
-            axiom_df, pool, src.dataset.irds_id, classical_cols + NEW_AXIOMS, metrics
+        report, per_query, runs = _effectiveness_for_collection(
+            collection=collection,
+            src=src,
+            pool=pool,
+            frame=frame,
+            prediction_columns=pair_predictions,
+            feature_sets=feature_sets,
+            seed=seed,
         )
-        per_query, summary = ranking.compare_runs(base, aug, metrics)
+        effectiveness[collection] = report
+        per_query_outputs.append(per_query)
+        run_outputs.append(runs)
+        agreement = analysis.agreement_with_ci(frame, NEW_AXIOMS, seed=seed)
+        agreement.insert(0, "collection", collection)
+        agreement_outputs.append(agreement)
 
-        # Paired query-bootstrap CI on the per-query delta (aug - classical), per metric.
-        col_out = {}
-        for name in names:
-            delta = per_query[f"{name}_delta"].to_numpy(dtype=float)
-            groups = np.arange(len(delta))  # one query per row -> resample queries directly
-            ci_lo, ci_hi = _bootstrap_ci(delta, groups, seed)
-            col_out[name] = {
-                "classical_mean": summary[name]["mean_baseline"],
-                "augmented_mean": summary[name]["mean_reranked"],
-                "lift": summary[name]["mean_delta"],
-                "lift_ci": [ci_lo, ci_hi],
-                "wins": summary[name]["wins"],
-                "ties": summary[name]["ties"],
-                "losses": summary[name]["losses"],
-                "n_queries": summary[name]["n_queries"],
-            }
-        out[collection] = col_out
-    return out
+    pair_predictions.to_parquet(metrics_dir / "pair_predictions.parquet", index=False)
+    pair_predictions[["collection", "query_id", "group_id", "fold"]].drop_duplicates().to_csv(
+        metrics_dir / "folds.csv", index=False
+    )
+    pd.concat(per_query_outputs, ignore_index=True).to_csv(
+        metrics_dir / "effectiveness_per_query.csv", index=False
+    )
+    pd.concat(run_outputs, ignore_index=True).to_parquet(metrics_dir / "runs.parquet", index=False)
+    pd.concat(agreement_outputs, ignore_index=True).to_csv(
+        metrics_dir / "new_axiom_agreement.csv", index=False
+    )
+    _variant_residual_profiles(pooled, pair_predictions, feature_sets).to_csv(
+        metrics_dir / "residual_profiles.csv", index=False
+    )
+    with open(metrics_dir / "surrogate_models.json", "w") as handle:
+        json.dump(model_metadata, handle, indent=2)
+    with open(metrics_dir / "effectiveness.json", "w") as handle:
+        json.dump(effectiveness, handle, indent=2)
+    with open(metrics_dir / "capture.json", "w") as handle:
+        json.dump(_capture(pooled, classical, seed), handle, indent=2)
 
-
-def _position_consistency(merged: pd.DataFrame) -> float | None:
-    both = merged[merged["n_presentations"] >= 2]
-    return float(both["position_consistent"].mean()) if len(both) else None
+    primary = ranking.metric_names()[0]
+    print(f"[rq4] {model_name} -> {metrics_dir}")
+    for collection, report in effectiveness.items():
+        means = report["means"]
+        print(
+            f"      {collection}: BM25 {means['bm25'][primary]:.4f}, "
+            f"LLM {means['llm'][primary]:.4f}, classical {means['classical'][primary]:.4f}, "
+            f"+both {means['plus_both'][primary]:.4f}"
+        )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
-    parser.add_argument("--only-model", help="substring filter on the configured rankers")
+    parser.add_argument("--only-model", help="substring filter on configured rankers")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
     if not cfg.sources:
         raise SystemExit("rq4 config needs a `sources:` list of grid-cell configs")
-    source_cfgs = [load_config(paths.PROJECT_ROOT / s) for s in cfg.sources]
-    classical_cols = _classical_columns(source_cfgs[0])
-
+    source_cfgs = [load_config(paths.PROJECT_ROOT / path) for path in cfg.sources]
     rankers = source_cfgs[0].all_rankers
     if args.only_model:
-        rankers = [r for r in rankers if args.only_model in (r.model or "mock")]
+        rankers = [ranker for ranker in rankers if args.only_model in (ranker.model or "mock")]
         if not rankers:
             raise SystemExit(f"--only-model {args.only_model!r} matches no configured ranker")
 
     out = stages.output_dir(cfg)
     dump_config(cfg, out / "config.yaml")
-
-    # Reranking is model-independent (axiom aggregate), computed once.
-    print("[rq4] reranking arm (axiom aggregate, per collection)")
-    rerank = _reranking(source_cfgs, cfg.seed)
-    with open(out / "reranking.json", "w") as f:
-        json.dump(rerank, f, indent=2)
-    for collection, cols in rerank.items():
-        for name, s in cols.items():
-            print(
-                f"      {collection} {name:>7}: classical {s['classical_mean']:.4f} -> "
-                f"+{'{:+.4f}'.format(s['lift'])} [{s['lift_ci'][0]:+.4f}, {s['lift_ci'][1]:+.4f}] "
-                f"W/T/L {s['wins']}/{s['ties']}/{s['losses']}"
-            )
-
     for ranker_cfg in rankers:
-        model_name = ranker_cfg.model or "mock"
-        print(f"[rq4] capture arm: {model_name}")
-        pooled, _ = _pool(source_cfgs, ranker_cfg)
-        capture = _capture(pooled, classical_cols, _position_consistency(pooled), cfg.seed)
-
-        metrics_dir = out / "metrics" / model_name.replace("/", "__")
-        metrics_dir.mkdir(parents=True, exist_ok=True)
-        with open(metrics_dir / "capture.json", "w") as f:
-            json.dump(capture, f, indent=2)
-
-        c, a = capture["classical"], capture["augmented"]
-        print(
-            f"      classical  acc {c['cv_accuracy']:.4f}  R² {c['pseudo_r2']:.4f}  "
-            f"reducible↑ {c['reducible_residual_upper']:.4f}"
-        )
-        print(
-            f"      augmented  acc {a['cv_accuracy']:.4f}  R² {a['pseudo_r2']:.4f}  "
-            f"reducible↑ {a['reducible_residual_upper']:.4f}"
-        )
-        print(
-            f"      OOF acc lift {capture['oof_lift']:+.4f} "
-            f"[{capture['oof_lift_ci'][0]:+.4f}, {capture['oof_lift_ci'][1]:+.4f}]  "
-            f"logloss lift {capture['logloss_lift']:+.4f} "
-            f"[{capture['logloss_lift_ci'][0]:+.4f}, {capture['logloss_lift_ci'][1]:+.4f}]"
-        )
-        print(
-            f"      ΔR² {capture['pseudo_r2_lift']:+.4f}  coefs {capture['new_axiom_coefficients']}"
-        )
+        _run_model(source_cfgs, ranker_cfg, out, cfg.seed)
 
 
 if __name__ == "__main__":

@@ -1,22 +1,16 @@
-# Phase 3 Implementation — RQ4 Increment 1: lexical-adjacent residual axioms (engineering notes)
+# Phase 3 Implementation — RQ4 Increment 1 Retrospective Engineering Record
 
-> **Increment 1 of RQ4.** This document records what was built for the *first* RQ4 probe — the
-> two lexical-adjacent residual axioms VERB and QCOV, their capture test, and the reranking /
-> fitted-surrogate effectiveness study (§7) — and how: the append-only handling of the axiom
-> cache, the runners, and the runbook. Numerical results live in the runners' JSON outputs under
-> `results/` (cited inline below); the thesis write-up is deferred until the phase is complete.
-> The headline: **QCOV validated in capture, VERB a reported null; untuned axioms ≈ BM25 and even
-> a fitted lexical surrogate stays well short of the LLM.** The **main RQ4 line** the probe
-> motivated — the two-tier LLM-aligned *semantic* preference-axiom investigation — is designed in
-> `phase3-design.md`; its implementation notes are not yet written because that work is not yet
-> run.
+> This document records the implemented VERB/QCOV development increment, append-only axiom-cache
+> handling, coherent fitted pairwise runner and runbook. VERB/QCOV are retrospective candidates
+> because their definitions followed inspection of DL19/DL20 diagnostics. Current scientific
+> interpretation and the broader candidate protocol are in `phase3-design.md`; chronology is in
+> `research-logbook.md`.
 
 ## 1. Scope and cost
 
-RQ4 formalises the two residual seeds Phase 2 named — a verbosity/length cluster and a
-query-coverage cluster (`phase2-writeup.md` §3.4–3.5) — as new retrieval axioms, and tests
-whether they capture the residual (decomposition) and help reranking. Like RQ3 it is an
-**analysis phase**: **zero model/LLM calls, zero downloads**. Everything computes from the
+Increment 1 encodes two retrospective diagnostic leads—verbosity/length and query coverage—as
+explicit same-pair axioms and tests their internal fidelity and fitted reranking effectiveness.
+It is a cache-only analysis: **zero model/LLM calls, zero downloads**. Everything computes from the
 cached rq2 top-10 stages (pool, pairs, axiom preferences) and the append-only preference
 store. New axiom columns are pure CPU over cached text (~5 s per cell).
 
@@ -72,8 +66,10 @@ The hard constraint is append-only: never overwrite an existing axiom-pref colum
 **only** the columns absent from the cached `axiom_prefs.parquet` and merges them onto the
 existing frame (`validate="one_to_one"`, no-NaN assertion), leaving every existing column
 bit-for-bit intact. Idempotent. That the classical-only decomposition in §6 reproduces the
-Phase 2 numbers to 3 dp (Qwen 0.629/0.057, flan-large 0.666/0.074, flan-xl 0.639/0.059)
-confirms the existing columns were untouched.
+the then-current Phase 2 numbers to 3 dp. After the audit, regenerated classical
+accuracy/normalised-log-loss values are Qwen 0.630/0.060, flan-large 0.663/0.076, and
+flan-xl 0.639/0.060. This confirms key alignment, while the Phase 2 decision itself has
+changed under the corrected residual analysis.
 
 ## 6. Evaluation (`experiments/rq4_axioms/run.py`, `configs/rq4_axioms.yaml`)
 
@@ -86,8 +82,8 @@ collection-namespaced query ids) and `analysis.decompose`. Two arms:
 
 1. **Capture.** Per ranker, `decompose` on the classical lexical battery (full rq2 battery
    minus the degenerate columns and minus the RQ4 columns) and on classical + {VERB, QCOV},
-   on the same query-grouped folds. Reports CV accuracy, pseudo-R², the reducible-residual
-   upper bound and the fitted VERB/QCOV coefficients, plus two paired lifts with 2000-draw
+   on the same query-grouped folds. Reports CV accuracy, normalised log-loss gain and the
+   fitted VERB/QCOV coefficients, plus two paired lifts with 2000-draw
    query-bootstrap CIs: the OOF **accuracy** lift and the per-pair **log-loss** lift (the
    information view Phase 2 §3.1 treated as the honest figure). VERB_R is carried in the
    cache as an auxiliary variant but is not in the {VERB, QCOV} headline pair.
@@ -95,56 +91,39 @@ collection-namespaced query ids) and `analysis.decompose`. Two arms:
    by **majority vote** (`sign` of the column sum — the canonical untuned ir_axioms
    aggregate), Copeland-ranked (`ranking.copeland_ranking`) and scored against the qrels.
    nDCG@10 / MAP, classical-only vs classical + {VERB, QCOV}, with a paired query-bootstrap
-   CI on the per-query lift. Per §3.8 the deliverable is **lift over the classical battery**,
-   not absolute nDCG (the depth-10 oracle ceiling caps the metric).
+   CI on the per-query lift. The restructured RQ4 report also places these arms in the absolute,
+   depth-matched BM25/LLM/classical/extended nDCG@10 and MAP table; the oracle ceiling is context,
+   not a reason to omit absolute effectiveness.
 
 Outputs: `results/rq4_axioms/pooled_top10/metrics/<model>/capture.json` and
 `.../reranking.json`.
 
-## 7. Reranking effectiveness and the fitted-surrogate baseline (`experiments/rq5_surrogate/`)
+## 7. Reranking effectiveness and the fitted pairwise-axiom baseline
 
-Two questions beyond capture: do these axioms make a reranker that beats BM25, and how far
-toward the LLM can a *weighted* axiom model get? Both are zero-model-call, from the same cached
-rq2 top-10 stages + store.
+The coherent `rq4_axioms` runner fits classical, +VERB, +QCOV and +both arms on fixed query-
+disjoint folds, predicts every top-10 pair, and Copeland-aggregates each arm. It reports BM25,
+LLM, untuned and fitted runs with 10,000-draw paired query-bootstrap comparisons.
 
-**Effectiveness (untuned aggregate).** Reranking BM25's top-10 by the §6.2 majority vote,
-classical + {VERB, QCOV} lands at **BM25 parity** — DL19 +0.008 nDCG@10 (CI spans 0), DL20 −0.013
-(CI spans 0). The classical battery alone is significantly *below* BM25 on DL20 (−0.027, CI
-excludes 0); VERB+QCOV rescue it to parity. The LLM rerankers on the same top-10 beat BM25 by
-+0.038–0.069 (all CIs exclude 0); the perfect-top-10 oracle is +0.089/+0.096. So the untuned
-axioms ≈ BM25 (they largely re-express BM25's own ordering on lexically-strong top-10 pairs), the
-LLM captures ~70 % of the oracle gain, the axioms ~0–9 %.
+Fitted nDCG@10, classical vs +both:
 
-*Gotcha (recorded).* Building the LLM reranker by Copeland-aggregating the **raw** preference-store
-load double-counts: the store also holds the uniform50 wide-gap cells' verdicts, whose pairs reach
-ranks > 10, so Copeland then reranks a deeper pool and inflates nDCG (Qwen appeared to *beat* the
-oracle). Cell reranking must restrict verdicts to the cell's top-10 pairs — which
-`merged_cell_frame` does by construction (it merges axioms onto the cell's `pairs`), so the
-runners are correct; the caveat is for any ad-hoc store-level aggregation.
+| target | query set | classical | +VERB+QCOV |
+|---|---|---:|---:|
+| Qwen | DL19 | 0.5028 | 0.5024 |
+| Qwen | DL20 | 0.4845 | 0.4882 |
+| FLAN-large | DL19 | 0.5045 | 0.5036 |
+| FLAN-large | DL20 | 0.4900 | 0.4923 |
+| FLAN-XL | DL19 | 0.5084 | 0.5063 |
+| FLAN-XL | DL20 | 0.4908 | 0.4860 |
 
-**Fitted surrogate (RQ5 preview, `run.py` + `configs/rq5_surrogate.yaml`).** The fair "how far can
-axioms get" test: per LLM target, an L2 logistic (same estimator as `joint_fit`) is trained to
-predict that model's pairwise verdict from the axiom battery, **query-grouped out-of-fold** (a
-held-out query's pairs scored by a model trained only on other queries — no leakage), predicting
-P(doc₁ preferred) on **all** top-10 pairs (not just the LLM's decisive ones, so it never peeks at
-which pairs the LLM tied on); the hard sign is its Copeland preference. Both the classical and the
-classical + {VERB, QCOV} feature sets are fitted. Results (nDCG@10, Δ vs BM25):
+No add-one or nested new-axiom effectiveness interval excludes zero. The corresponding OOF
+accuracy-lift intervals also include zero for every target. Log-loss lift is positive with an
+interval above zero for Qwen (+0.0126 [+0.0003,+0.0247]) and FLAN-large
+(+0.0118 [+0.0007,+0.0229]), but not FLAN-XL (+0.0075 [−0.0051,+0.0187]). These are separate
+internal fidelity and effectiveness results; none is held-out confirmation.
 
-- **DL19** (headroom): the fitted surrogate reaches +0.025–0.028 (CI excludes 0) — it beats both
-  BM25 and the untuned vote — recovering **~37–60 % of the LLM's over-BM25 gain** (~26 % of the
-  oracle's).
-- **DL20** (saturated, BM25 already near oracle): parity (−0.006, CI spans 0); none of the LLM's
-  +0.062.
-- **VERB+QCOV add nothing to the fitted surrogate** (marginal Δ within ±0.004) — a weighted
-  classical battery already absorbs their small, partly-redundant signal, even though they *did*
-  help the equal-weight vote. Honest nuance.
-- The surrogate barely depends on which LLM it mimics (±0.003) — the axiom-learnable structure is
-  LLM-agnostic and BM25-adjacent.
-
-The picture: **BM25 ≈ untuned axioms < fitted axiom surrogate < LLM ≪ oracle.** The fitted lexical
-surrogate is the baseline the semantic (Tier-A) axioms of the main RQ4 line must move toward the
-LLM (`phase3-design.md` §4). Output:
-`results/rq5_surrogate/pooled_top10/metrics/surrogate_reranking.json`.
+The model remains pairwise and requires Copeland aggregation. It is RQ4 infrastructure, not the
+RQ5 pointwise scorer. Older naive-vote and legacy “surrogate preview” summaries are superseded;
+their chronology is retained in `research-logbook.md`.
 
 ## 8. Tests (`tests/test_rq4.py`)
 
@@ -162,5 +141,23 @@ tokenizer end-to-end.
 uv run --no-sync python -m pytest tests/test_rq4.py -q
 uv run --no-sync python scripts/add_rq4_axiom_columns.py          # additive cache columns
 uv run --no-sync python experiments/rq4_axioms/run.py --config configs/rq4_axioms.yaml
-uv run --no-sync python experiments/rq5_surrogate/run.py --config configs/rq5_surrogate.yaml
 ```
+
+## 10. Current coherent runner and remaining work
+
+The current `rq4_axioms` runner now produces fixed query-disjoint folds; classical, +VERB, +QCOV
+and +both fitted arms; pair predictions and serialized models; depth-matched BM25, LLM, untuned
+and fitted runs; 10,000-draw paired query-bootstrap comparisons; agreement and tie diagnostics;
+candidate ablations; and residual profiles. It runs cache-only and makes zero model calls.
+
+The remaining work for the full `phase3-design.md` protocol is:
+
+1. nested inner-C selection rather than a fixed regularisation value;
+2. implementation and complete ledgering of the broader candidate families and bounded revisions;
+3. family-level leave-one-out ablations for the frozen extended battery;
+4. a frozen development manifest and external collection choice before any confirmation result
+   (`beir/nfcorpus/test` is the current proposal, not yet locked);
+5. separate held-out fidelity and effectiveness claims with multiplicity-adjusted secondary tests.
+
+RQ5 begins only after a separate implementation proves which retained features decompose into
+per-document values, scores each document once, and measures latency/call/FLOP savings.
