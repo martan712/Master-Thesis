@@ -101,6 +101,12 @@ class ExperimentConfig:
     ranker: RankerConfig = field(default_factory=RankerConfig)
     rankers: list[RankerConfig] = field(default_factory=list)  # multi-model experiments
     axioms: AxiomsConfig = field(default_factory=AxiomsConfig)
+    # Decomposition experiments (RQ3) pool the grid cells named here, each a path to a
+    # source config; the analysis reads their cached stages and verdicts (no model calls).
+    sources: list[str] = field(default_factory=list)
+    # Wide-gap (uniform50) cells for the gap-gradient open item (phase2-design.md §4),
+    # consumed by the rq3 runner's --uniform arm; same from-cache, zero-model-call path.
+    uniform_sources: list[str] = field(default_factory=list)
 
     @property
     def all_rankers(self) -> list[RankerConfig]:
