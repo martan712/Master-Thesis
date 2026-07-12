@@ -1,0 +1,10 @@
+# RQ3 end-to-end smoke: pools the single scifact+mock Phase 1 smoke cell (a trivial
+# one-cell "pool") to exercise the whole frame -> decomposition -> residual -> gap-gradient
+# path with the mock ranker. Minutes, no large downloads.
+experiment: rq3_smoke
+variant: scifact_mock
+seed: 42
+primary_metric: fidelity
+
+sources:
+  - configs/p1_smoke.yaml

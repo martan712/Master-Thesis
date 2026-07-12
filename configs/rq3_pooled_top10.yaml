@@ -1,0 +1,18 @@
+# RQ3 headline cell: DL19+DL20 top-10 all-pairs pooled (phase1-design.md §9.3 decision 3),
+# both rankers. The decomposition reads the cached verdicts and axiom preferences of the
+# two rq2 top-10 cells (which carry the full lexical battery + the WordNet semantic columns,
+# so the lexical-vs-combined ablation needs no new axiom computation) — zero model calls.
+experiment: rq3_decomposition
+variant: pooled_top10
+seed: 42
+primary_metric: fidelity
+
+sources:
+  - configs/rq2_dl19_top10.yaml
+  - configs/rq2_dl20_top10.yaml
+
+# Wide-gap cells for the gap-gradient open item (phase2-design.md §4), consumed by
+# `--uniform`. The rq1 uniform cells carry the same lexical battery, no semantic columns.
+uniform_sources:
+  - configs/rq1_dl19_uniform.yaml
+  - configs/rq1_dl20_uniform.yaml
