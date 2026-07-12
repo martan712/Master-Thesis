@@ -27,15 +27,15 @@ are arranged as a sort, and every comparison is a full forward pass through the 
 They are opaque: the model simply asserts that one document beats another, and gives us no
 account of why. And they are inconsistent: their pairwise preferences have been shown to
 be non-transitive, so that a model may prefer A over B, B over C, and yet C over A, and to
-depend on the order in which the two documents are presented [3, 4].
+depend on presentation order. Reference [4] is direct IR-ranking evidence; [3] studies the
+related but distinct LLM-as-judge setting.
 
 Axiomatic IR offers precisely what these models lack, namely a faithful, cheap and
 readable account of why one document should be preferred to another. Recent work has begun
-to look inside LLM rankers, either mechanistically [5] or through probing [6], but none of
-it frames the model's pairwise preferences as the satisfaction of retrieval axioms, none
-derives new axioms from the cases where the model departs from the classical ones, and
-none uses axioms as a cheap substitute for the expensive model. This is the gap we set out
-to address.
+to look inside LLM rankers, either mechanistically [5] or through probing [6]. To our
+knowledge within the reviewed literature, prior work does not jointly frame pairwise
+preferences as axiom satisfaction, derive candidate axioms from the residual, and test an
+axiom-based surrogate. This is a bounded novelty claim, not proof of absence.
 
 We can state the aim of the thesis as a single question. How far can the pairwise
 preferences of a generative LLM ranker be reduced to an interpretable set of retrieval
@@ -109,7 +109,8 @@ recovered in LLM rankers, which is the premise on which our explanation question
 The way an LLM is prompted to rank sits on a trade-off between cost and reliability. A
 pointwise prompt asks the model to score each document on its own, which is cheap but
 gives unreliable absolute numbers. A pairwise prompt asks it to compare two documents,
-which yields the best relative judgements but costs on the order of N² comparisons [2]. A
+which can be aggregated all-pairs in O(N²), sorted in O(N log N), or approximated by the
+linear variants evaluated in PRP [2]. A
 listwise prompt asks it to order a whole window of documents at once, as RankGPT does with
 a sliding window [1], and a setwise prompt compares small sets and sorts, which reduces
 the number of calls further [22]. Because these methods are expensive, their efficiency is
@@ -146,16 +147,17 @@ axioms are pairwise constraints placed on a pointwise scoring function. The pair
 reasoning is only a device for reasoning about the design; the object that is actually
 deployed is a score, which is why classical axiomatic rankers are transitive and run in
 linear time. A generative LLM pairwise ranker inverts this. It answers "is d₁ better than
-d₂?" directly and keeps no underlying score, which is exactly why it can be non-transitive
-and why it costs N² comparisons [3]. In the language of learning to rank, which separates
+d₂?" directly and keeps no guaranteed underlying score, which permits rather than causes
+non-transitivity and order effects; direct IR evidence is supplied by [4]. Its cost depends
+on the aggregation protocol. In the language of learning to rank, which separates
 pointwise, pairwise and listwise approaches [30, 31], the axioms map most naturally onto
 the pairwise approach, since a pairwise constraint is precisely what trains a scoring
 function.
 
 It is worth being careful here about where the cost of ranking actually lives, because it
 is tempting to claim too much for axioms. Replacing an expensive model comparison with a
-cheap axiom test does not change the number of comparisons; a pairwise scheme still makes
-N² of them. What it changes is the cost of each comparison and, in particular, the number
+cheap axiom test does not change the number of comparisons in a fixed protocol; exhaustive
+all-pairs still makes O(N²) of them. What it changes is the cost of each comparison and, in particular, the number
 of times we have to call the model. The asymptotic cost only falls to linear when the
 axioms combine into a pointwise score, so that we can score each document once and sort.
 There are therefore three regimes worth keeping apart. In the first, we run the pairwise
@@ -172,8 +174,9 @@ the thesis is about how far we can push towards it.
 
 The set of axioms we start from combines the classical lexical constraints with semantic
 ones. On the lexical side we have the term-frequency, term-discrimination,
-length-normalisation and proximity constraints described above, all of which decompose
-into a pointwise score and each of which captures a familiar aspect of relevance, such as
+length-normalisation and proximity constraints described above. Some constrain or motivate
+pointwise scoring functions, but a generic vote over their pairwise outputs is not itself
+guaranteed to decompose into a pointwise score. They capture familiar aspects of relevance, such as
 lexical overlap, the weighting of rare terms, control for verbosity, and the value of
 query terms appearing close together. On the semantic side we have the semantic
 term-matching constraints [10] and their embedding-based generalisations [11], which
@@ -222,11 +225,12 @@ pairwise-efficiency angle is open now but may not stay open for long.
 
 ## 3. Broad methodology and justification
 
-The framing we adopt is to explain a pairwise LLM ranker with a combined lexical and
-semantic axiom set and then to distil those axioms into a pointwise surrogate. We prefer
-this framing because it delivers interpretability and a genuine reduction in asymptotic
-cost within a single story, and because it occupies ground that neither of the nearest
-prior works [5, 6] has taken.
+The framing we adopt is to test whether a fitted lexical and semantic axiom set reproduces
+pairwise LLM preferences and supports effective reranking. New-axiom development is the main
+contribution. A later pointwise surrogate is conditional: pairwise axiom votes and Copeland
+aggregation are not linear-time merely because the fitted model is logistic. RQ5 begins only
+for retained features that admit an explicit per-document decomposition, at which point the
+efficiency claim must be measured rather than inferred.
 
 In outline the work proceeds as follows, and the research plan gives the detailed version.
 We first assemble the axiom battery, combining the lexical constraints with the semantic
