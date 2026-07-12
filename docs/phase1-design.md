@@ -268,10 +268,78 @@ top-10 residual as large as Phase 0 measured, even a one-point gain would be not
   cross-validated joint fit — not any single axiom's agreement — is the number that carries
   weight downstream.
 
-## 9. Outcomes and decisions
+## 9. Outcomes and decisions (2026-07-12)
 
-*(to be filled as results land, as in `phase0-design.md` §7)*
+Phase 1 is complete: all §2 exit criteria hold. The full grid — {DL19, DL20} × {top10,
+uniform50} × {Qwen3.6-35B-A3B-AWQ, flan-t5-large}, order swap throughout — is cached in
+the preference store; per-cell outputs (agreement profiles with bootstrap CIs, gap
+gradients, joint fits, effectiveness) are under `results/`, with the working overview in
+`notebooks/p1_overview.ipynb`. All numbers postdate the 2026-07-11 ir_axioms PROX fixes
+(PROX2 batch-path sign flip, PROX1 determinism); Phase 0's "PROX2 anti-agreement"
+replication target (~0.33) was an artefact of that bug — post-fix PROX2 sits at
+0.57–0.65, the mirror image of the pilot number.
 
-- **Effectiveness gate (§4).** Qwen nDCG@10 vs. BM25 on DL19 and DL20 (and MAP), with the
-  paired win/tie/loss counts and the flan-t5-large contrast: *(pending)*. Gate verdict —
-  pass (residual treated as skill; Phase 1 proceeds) or stop-and-fix: *(pending)*.
+### 9.1 Effectiveness gate (§4): PASS
+
+nDCG@10 of Copeland/PRP-allpair over the cached top-10 verdicts vs. the BM25 pool-as-run,
+Δ with 95% paired query-bootstrap CIs (10,000 resamples):
+
+| collection | model | BM25 | reranked | Δ nDCG@10 [95% CI] | W/T/L |
+|---|---|---|---|---|---|
+| DL19 | Qwen3.6-35B | 0.480 | 0.548 | +0.069 [+0.048, +0.090] | 32/5/6 |
+| DL20 | Qwen3.6-35B | 0.494 | 0.556 | +0.062 [+0.039, +0.085] | 41/4/9 |
+| DL19 | flan-t5-large | 0.480 | 0.529 | +0.050 [+0.027, +0.073] | 30/5/8 |
+| DL20 | flan-t5-large | 0.494 | 0.531 | +0.038 [+0.014, +0.061] | 37/4/13 |
+
+MAP moves the same direction everywhere (Qwen +0.018 / +0.026). **Verdict: pass.** Qwen
+clearly beats BM25 on both collections with CIs entirely above zero; the top-10 residual
+is treated as skill and Phase 1's conclusions are licensed. Context, not gate: reranked
+≈ 0.55 sits below the ≈ 0.65 literature anchor for strong PRP rerankers, consistent with
+position consistency of only 0.71 / 0.74 collapsing a quarter of the pairs to ties —
+worth a sentence in the thesis, not a stop-and-fix.
+
+### 9.2 Findings against the §7 open questions
+
+- **DL20 replicates the DL19 profile.** Agreement correlation over the 19 axiom columns
+  with n ≥ 30: r = 0.79 (Qwen) / 0.86 (flan) across collections, r = 0.93 across models
+  on DL20 top-10. Post-fix profile shape: AND (0.78–0.83) and LB1 (0.70–0.77) top;
+  proximity 0.55–0.68; TFC1 at chance in every cell; DIV at or below chance despite
+  > 90% coverage.
+- **Gap gradient: partial.** The judge's decisive rate rises cleanly with rank gap
+  (~0.55 → 0.75), but per-axiom agreement mostly does not: TFC1 climbs only in the
+  widest deciles, and DIV drifts *below* chance as the gap widens (0.55 → 0.33). The §2
+  expectation did not appear as designed — per §2 this is the finding to chase before
+  RQ3, and it is carried there as an open item.
+- **Relaxed preconditions buy coverage, not agreement.** M-TDC: strict 0.83 (12 pairs,
+  DL19) falls to 0.52–0.56 at mass margins 0.1/0.3 (274–855 pairs), and on DL20 even
+  strict M-TDC is at chance — the Phase 0 number was a small-sample artefact of its
+  niche. LNC1 decays to ≤ chance at tf0.5; TF-LNC's relaxations sit at a weak 0.47–0.59. Two levers are
+  degenerate: TFC1@len{0.2,0.5} is bit-for-bit identical to strict TFC1 (the LEN margin
+  never binds on these pools), and TFC3 stays dead (≤ 4 evaluable pairs) at every margin.
+- **Joint fit.** The strict core adds only +0–2 accuracy points over the majority-class
+  base rate; the full battery reaches 0.57–0.64 CV accuracy (AUC 0.63–0.67), +4–9 points
+  over base — RQ3's starting number. Phase 0's 0.60 floor holds.
+- **RQ2 (WordNet tier): null.** Every semantic axiom's CI spans 0.5 on DL20, and the
+  combined-vs-lexical joint fit is *negative* in all four top-10 cells (Δaccuracy −0.7
+  to −1.6 points, ΔAUC likewise).
+
+### 9.3 Decisions
+
+1. **Battery + margins for RQ3.** Feature set = the full battery as run: strict core +
+   AND/DIV/LB1 + relaxed variants (LNC1@tf{0.2,0.5}, TF-LNC@len{0.1,0.3},
+   M-TDC@mass{0.1,0.3}), minus the degenerate columns TFC1@len{0.2,0.5} (identical to
+   strict) and TFC3 with its variants (≤ 4 evaluable pairs). No relaxed variant is a
+   headline axiom — they enter only as joint-fit features, and RelaxedMTdc is reported
+   as an inspired variant, not literature M-TDC (§5.2).
+2. **Semantic backend: WordNet only — fastText NO-GO.** The §6.1 per-axiom trigger fires
+   nominally twice on DL19 (STMC2@wn 0.555 at coverage 0.077; ANTI-REG@wn 0.556 at
+   0.619), but neither replicates on DL20 (0.509 / 0.505), both CIs span 0.5, and the
+   joint-fit criterion is negative in all four cells. A blunt similarity that moves
+   nothing does not justify the 7.24 GB sharper one; RQ2's answer is a null, reported
+   with the WordNet-crudeness caveat (§8) alongside.
+3. **Collections pool.** The profile replicates (9.2), so RQ3 builds its decomposition
+   on DL19+DL20 pooled, reporting per-collection numbers as robustness checks.
+4. **RQ3 grid cells.** The decomposition is built on the two top-10 all-pairs cells (the
+   primary condition, validated as skill by the gate), with Qwen primary and
+   flan-t5-large as replication; the uniform cells remain validity controls and feed the
+   gap-gradient follow-up, not the decomposition.
