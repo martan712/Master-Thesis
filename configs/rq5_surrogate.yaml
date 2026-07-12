@@ -1,0 +1,14 @@
+# RQ5 preview (Phase 3 bridge): the fitted axiom-surrogate reranker. Trains an L2 logistic
+# on the axiom battery to mimic each LLM's pairwise verdicts (out-of-fold, query-grouped, so
+# no leakage), Copeland-aggregates the surrogate's predicted preferences into a run, and
+# compares it to BM25, the untuned axiom majority vote, and the LLM itself. Reads the two
+# rq2 top-10 cells' cached verdicts + axiom preferences — zero model calls. "How far can a
+# weighted axiom model get toward the LLM?" is the RQ5 question this previews.
+experiment: rq5_surrogate
+variant: pooled_top10
+seed: 42
+primary_metric: effectiveness
+
+sources:
+  - configs/rq2_dl19_top10.yaml
+  - configs/rq2_dl20_top10.yaml
