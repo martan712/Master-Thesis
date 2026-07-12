@@ -11,6 +11,7 @@ import pandas as pd
 from ir_measures import AP, nDCG
 
 from axiomrank import paths
+from axiomrank.confirmation import assert_dataset_access_allowed
 
 # nDCG@10 primary, AP (aggregates to MAP) secondary — the effectiveness-reference metrics
 # (phase1-design.md §4). Literature anchors: BM25 ~0.50 nDCG@10 on DL19/DL20, competent
@@ -20,6 +21,7 @@ DEFAULT_METRICS = (nDCG @ 10, AP)
 
 def _load_qrels(dataset_id: str) -> pd.DataFrame:
     """Qrels of an ir_datasets dataset as an ir_measures-shaped frame."""
+    assert_dataset_access_allowed(dataset_id)
     paths.configure_caches()  # point ir_datasets at data/cache before import
     import ir_datasets
 

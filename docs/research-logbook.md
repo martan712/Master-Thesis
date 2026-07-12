@@ -189,8 +189,8 @@ linear-time scorer.
 
 ## 8. Engineering audit corrections after the checkpoints
 
-The following corrections were implemented in the uncommitted post-checkpoint audit workspace;
-they are not part of the commit sequence listed in §1:
+The following corrections were first implemented in the post-checkpoint audit workspace and then
+committed in the phase-ordered sequence listed in §1:
 
 - **Fold-local null priors:** majority/intercept baselines are estimated from training folds only;
   held-out labels no longer influence the null prediction.
@@ -215,8 +215,8 @@ they are not part of the commit sequence listed in §1:
 - Candidate development is bounded and fully logged.
 - Fidelity and qrel effectiveness are separate claim axes with four possible joint outcomes.
 - DL19/DL20 are development data; external confirmation is locked before inspection.
-- SciFact cannot be confirmation because it served smoke diagnostics; `beir/nfcorpus/test` is a
-  proposed external collection, subject to a pre-freeze mechanical access check and explicit lock.
+- SciFact cannot be confirmation because it served smoke diagnostics. `beir/nfcorpus/test` was
+  locked on 2026-07-13 before local outcome access.
 - Tier-B LLM judges are diagnostic operationalisations, not literal oracles/upper bounds.
 - RQ5 begins only with features proven to decompose into per-document scores and measured once per
   document.
@@ -235,3 +235,17 @@ specificity/completeness, and correct binding of query qualifiers and roles. The
 development candidates QARA, CBP and QCS and a typed refinement of Specificity. Ambiguous-entity
 and answer-shaped-but-unreliable cases were retained as cautions. Because selection and coding use
 DL19/DL20 and one unblinded analyst, no candidate was promoted to validated status.
+
+## 11. External confirmation lock
+
+Before implementing the casebook-derived candidates, `beir/nfcorpus/test` was fixed on
+2026-07-13 as the one-shot external confirmation set. Selection used public catalogue metadata
+only; no local queries, documents, qrels, BM25 pool or result statistics were loaded. The lock
+contract is stored in `phase3-confirmation-lock.yaml`, and shared retrieval/evaluation functions
+now reject the dataset until a deliberate unlock manifest exists.
+
+The final candidate registry, preconditions, thresholds, feature versions, ablations and
+development-trained coefficients must be hashed and recorded before unlock. Confirmation applies
+the frozen models without fitting on holdout LLM labels or qrels. Qwen is the primary target;
+FLAN-T5-large is optional replication. The external domain makes transfer part of the claim and
+part of the risk.

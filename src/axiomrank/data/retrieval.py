@@ -8,6 +8,7 @@ touches the network.
 import pandas as pd
 
 from axiomrank import paths
+from axiomrank.confirmation import assert_dataset_access_allowed
 from axiomrank.config import DatasetConfig, FirstStageConfig
 
 
@@ -20,6 +21,7 @@ def _pyterrier():
 
 def index_ref(cfg: DatasetConfig):
     """Terrier index reference (prebuilt, configured path, or locally built)."""
+    assert_dataset_access_allowed(cfg.irds_id)
     return _index_ref(_pyterrier(), cfg)
 
 
@@ -54,6 +56,7 @@ def bm25_pool(cfg: DatasetConfig, first_stage: FirstStageConfig) -> pd.DataFrame
     """
     if first_stage.retriever != "bm25":
         raise ValueError(f"Unsupported first-stage retriever: {first_stage.retriever}")
+    assert_dataset_access_allowed(cfg.irds_id)
     pt = _pyterrier()
     irds = pt.get_dataset(f"irds:{cfg.irds_id}")
     topics = irds.get_topics()

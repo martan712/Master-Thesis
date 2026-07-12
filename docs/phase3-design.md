@@ -101,14 +101,20 @@ confirmatory.
 
 ### 4.2 Locked confirmation
 
-The proposed external dataset is `beir/nfcorpus/test`; the choice remains open until frozen without
-result inspection. SciFact is ineligible because it already served smoke diagnostics. Before the
-development manifest is frozen, only mechanical access and schema checks are allowed. Candidate membership, direction, thresholds, feature extraction,
-regularisation grid and aggregation are then locked. No confirmation result may trigger another
-revision.
+`beir/nfcorpus/test` was locked on 2026-07-13 as the one-shot external confirmation set,
+before any local query, document, qrel, BM25 or model-result access. The complete no-touch and
+unlock contract is in
+[`phase3-confirmation-protocol.md`](phase3-confirmation-protocol.md) and its machine-readable
+[`phase3-confirmation-lock.yaml`](phase3-confirmation-lock.yaml). Shared retrieval and evaluation
+paths fail closed while the lock is active.
 
-A not-previously-analysed ranker system is added if affordable. Without it, confirmation supports
-cross-dataset but not cross-model generalisation.
+Candidate membership, direction, thresholds, feature extraction, regularisation, development-
+trained coefficients and aggregation must be frozen before the explicit unlock commit. The
+frozen model is applied without holdout refitting. No confirmation result may trigger another
+revision while retaining the label “confirmation.”
+
+Qwen is the primary locked target; FLAN-T5-large is a replication if budget permits. Without the
+replication, confirmation supports cross-dataset but not cross-model generalisation.
 
 ## 5. Fitted reranking protocol
 

@@ -18,6 +18,7 @@ from pathlib import Path
 import pandas as pd
 
 from axiomrank import paths
+from axiomrank.confirmation import assert_dataset_access_allowed
 
 
 COLLECTIONS = {
@@ -56,6 +57,7 @@ AXIOM_COLUMNS = [
 
 
 def _qrels(dataset_id: str) -> dict[tuple[str, str], int]:
+    assert_dataset_access_allowed(dataset_id)
     paths.configure_caches()
     import ir_datasets
 

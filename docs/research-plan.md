@@ -134,11 +134,11 @@ DL19/DL20 and all ranker systems already inspected are development evidence. Que
 them estimates internal generalisation but does not make retrospectively proposed candidates
 confirmatory.
 
-The proposed external dataset is `beir/nfcorpus/test`; the collection choice remains open until it
-is frozen without result inspection. SciFact is ineligible because it already served smoke
-diagnostics. Before freezing RQ4, only a mechanical access/schema check is allowed—no qrel or
-model-result inspection. A new ranker system is a second confirmation axis if affordable;
-otherwise claims are explicitly cross-dataset, not cross-model.
+`beir/nfcorpus/test` was locked on 2026-07-13 as the untouched, one-shot external confirmation
+set. It has not been loaded locally. The no-touch boundary and frozen analysis are specified in
+`phase3-confirmation-protocol.md`; shared dataset access fails closed until an explicit unlock
+commit records the frozen development-manifest hash. Qwen is primary and FLAN-T5-large is a
+replication if affordable; otherwise claims are explicitly cross-dataset, not cross-model.
 
 ## 6. Deliverables
 

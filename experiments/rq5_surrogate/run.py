@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 
 from axiomrank import paths, ranking
+from axiomrank.confirmation import assert_dataset_access_allowed
 from axiomrank.config import dump_config, load_config
 from axiomrank.pipeline import merged_cell_frame, stages
 
@@ -79,6 +80,7 @@ def _run_from_pref(frame: pd.DataFrame, pref: np.ndarray, pool, dataset_id, metr
 
 def _oracle_run(pool: pd.DataFrame, dataset_id: str, depth: int = 10) -> pd.DataFrame:
     """Perfect reorder of BM25's top-`depth` by qrels grade — the top-10 nDCG ceiling."""
+    assert_dataset_access_allowed(dataset_id)
     import ir_datasets
 
     qrels: dict = {}

@@ -1,0 +1,77 @@
+schema_version: 1
+status: locked
+locked_on: 2026-07-13
+
+dataset:
+  irds_id: beir/nfcorpus/test
+  role: one-shot_external_confirmation
+  query_selection: all_official_test_queries
+  corpus_selection: full_official_test_corpus
+  hf_artifact: pyterrier/nfcorpus.terrier
+
+retrieval:
+  first_stage: bm25
+  pool_depth: 100
+  rerank_depth: 10
+  pair_sampling: all_45_unordered_top10_pairs
+
+ranker_protocol:
+  primary:
+    backend: openai_compatible
+    model: models/qwen3.6-35B-A3B-AWQ
+    prompt_version: v1
+    order_swap: true
+    max_chars: 2000
+    thinking: false
+  replication_if_budgeted:
+    backend: hf
+    model: google/flan-t5-large
+    prompt_version: v0
+    order_swap: true
+    max_chars: 2000
+
+fitting:
+  development_data:
+    - msmarco-passage/trec-dl-2019/judged
+    - msmarco-passage/trec-dl-2020/judged
+  holdout_refitting: forbidden
+  requirement: apply_frozen_development_coefficients_and_thresholds
+
+primary_claims:
+  fidelity:
+    contrast: frozen_extended_minus_frozen_classical
+    metric: stable_decisive_pair_log_loss
+    inference: paired_query_bootstrap_95pct_ci
+    success: interval_strictly_above_zero
+  effectiveness:
+    contrast: frozen_extended_minus_frozen_classical
+    metric: ndcg_at_10
+    inference: paired_query_bootstrap_95pct_ci
+    success: interval_strictly_above_zero
+
+secondary_outputs:
+  - pairwise_accuracy
+  - ranking_fidelity
+  - map
+  - bm25_llm_and_axiom_absolute_effectiveness
+  - family_ablations_with_holm_adjustment
+  - order_inconsistency_and_tie_rates
+
+forbidden_before_unlock:
+  - loading_or_printing_queries
+  - loading_or_printing_documents
+  - loading_or_printing_qrels
+  - building_or_loading_a_bm25_pool
+  - collecting_llm_preferences
+  - computing_axiom_preferences
+  - inspecting_dataset_or_result_statistics
+
+unlock_requirements:
+  - candidate_registry_frozen
+  - all_thresholds_and_preconditions_frozen
+  - feature_extraction_and_software_versions_frozen
+  - development_trained_coefficients_serialized
+  - family_membership_and_ablation_plan_frozen
+  - confirmation_runner_dry_run_on_non_holdout_data
+  - frozen_manifest_hash_recorded_in_research_logbook
+  - explicit_unlock_commit_creates_configs/confirmation/UNLOCKED.yaml
