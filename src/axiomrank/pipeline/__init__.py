@@ -4,6 +4,7 @@ Factored out of experiments/p0_pilot/run.py so every phase's runner is a thin re
 """
 
 from axiomrank.pipeline.collect import collect_verdicts
+from axiomrank.pipeline.frames import merged_cell_frame
 from axiomrank.pipeline.measurement import measure_cell
 from axiomrank.pipeline.stages import (
     build_axiom_prefs,
@@ -21,6 +22,7 @@ __all__ = [
     "cached_frame",
     "collect_verdicts",
     "measure_cell",
+    "merged_cell_frame",
     "output_dir",
     "processed_dir",
 ]
