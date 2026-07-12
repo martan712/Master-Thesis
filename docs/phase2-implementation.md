@@ -1,28 +1,28 @@
-# Phase 2 Implementation — Decomposition, RQ3 (engineering plan)
+# Phase 2 Implementation — Predictive Diagnostics, RQ3 (engineering record)
 
-> Companion document: the scientific design — framing, the combined model, the
-> explained/residual definition, the noise-floor split, the residual-characterisation
-> methodology and the pre-registered RQ4-emphasis criteria — lives in `phase2-design.md`.
-> This document holds the engineering plan.
+> **Status: executed.** This file is the implementation and reproduction record; scientific
+> outcomes are recorded in `phase2-design.md` §5; corrections are in `research-logbook.md`.
 
-The engineering plan for Phase 2 (RQ3): what it costs (nothing in model calls), the code
-that changes, how the two collections are pooled from cache, how the non-axiom covariates
+> Companion document: the current scientific design, estimand and compact results lives in
+> `phase2-design.md`. This file records pooling, covariates, outputs, tests and reproduction.
+
+The engineering record for Phase 2 (RQ3) describes its zero-call cost, how the query sets are pooled from cache, how diagnostic covariates
 are assembled, the test discipline, the runbook, and the operational risks.
 
 ## 1. Scope
 
-RQ3 is an **analysis phase**: it consumes the verdicts already cached in the preference
-store by the Phase 1 top-10 runs and produces the explained/residual decomposition and the
-residual characterisation. It collects **zero new model verdicts**. The *why* of every
+RQ3 is a cache-only diagnostic phase: it consumes Phase 1 top-10 verdicts and produces
+query-grouped existing-battery predictions plus exploratory error diagnostics. It collects
+**zero new model verdicts**. The *why* of every
 design choice is in `phase2-design.md`; here we assume those decisions and implement them.
 
 ## 2. Cost
 
 - **Model calls: none.** The DL19+DL20 top-10 verdicts for both rankers are already in the
-  store (Phase 1 §9). RQ3 re-reads them and pools.
+  store (`phase1-design.md` §6). RQ3 re-reads them and pools.
 - **Local CPU only:** rebuilding the merged pair frames from the cached stages (pool,
   pairs, axiom preferences — all Parquet under `data/processed/`), assembling covariates,
-  and fitting the combined model / residual model / clusters. Seconds-to-minutes per cell.
+  and fitting existing-battery/incremental diagnostics plus exploratory clusters. Seconds-to-minutes per cell.
 - The uniform50 cells (already cached) are re-read only for the gap-gradient item (§3.4 of
   the design); they add no model calls either.
 
@@ -39,7 +39,8 @@ analysis/covariates.py  NEW: attach_covariates(merged, pool, pairs, store_df) ->
                        non-axiom covariate columns; COVARIATE_COLUMNS, CONTENT_COVARIATES
 analysis/decomposition.py NEW: decompose(merged, feature_names, verdicts, ...) ->
                        accuracy split + information split (McFadden pseudo-R²) +
-                       reliability_ceiling(position_consistency); reuses joint.joint_fit OOF
+                       an assumption-dependent single-order sensitivity calculation from
+                       position consistency; reuses joint.joint_fit OOF
 analysis/residual.py  NEW: residual_profiles (covariate-binned OOF accuracy + signed
                        residual), residual_model (grouped-CV lift over axiom-only, all vs
                        content-only covariates, bootstrap CI), residual_clusters (KMeans +
@@ -89,24 +90,23 @@ All derivable from cached frames — no new download, no model call:
 |---|---|---|
 | `rank_gap`, `rank_max` | pool ranks (`attach_rank_gap`) | position, not content |
 | `score_gap`, `score_max` | pool BM25 `score` | lexical-strength, not new content |
-| `len_1/2`, `len_diff`, `len_ratio`, `len_max` | word-count of `pairs.text_*` | **yes** (verbosity/length) |
-| `qcov_1/2`, `qcov_gap` | query-term coverage of each doc (tokenizer) | **yes** (matching) |
+| `d_len`, `len_max`, `len_ratio` | signed length difference, maximum and ratio from `pairs.text_*` | **yes** (verbosity/length) |
+| `d_qcov` | signed query-term-coverage difference (tokenizer) | **yes** (matching) |
 | `query_len`, `query_is_question` | `pairs.query` | **yes** (query type) |
 | `conf_margin_prob`, `conf_margin_score` | store `prob_a`, `score_a−score_b`, per-pair mean | model confidence, **not** content |
 
-`CONTENT_COVARIATES` = the length, coverage and query-type columns — the set the design's
-§6.1 RQ4-main-act gate requires signal in (confidence and BM25/rank strength are excluded,
-per design §3.4: predictable-from-confidence is a calibration finding, not an axiom seed).
-The confidence margin is aggregated over a canonical pair's presentations as the mean of
-`|prob_a − 0.5|` and `|score_a − score_b|`; it is present only when the store carried both
-orders (else NaN, dropped by the residual model's per-feature NaN guard).
+`CONTENT_COVARIATES` = [`d_len`, `d_qcov`] for the scoped content-only diagnostic; confidence
+and BM25/rank strength are excluded from that arm and retained in the broader comparison.
+The confidence margin is aggregated over whichever presentations are available as the mean
+of `|prob_a − 0.5|` and `|score_a − score_b|`; it does not require both orders.
 
 ### 3.3 Output inventory per pooled cell × model
 
 Under `results/rq3_decomposition/<variant>/metrics/<model>/`:
 - `decomposition.json` — per feature set: base rate, CV accuracy/AUC (from `joint_fit`),
-  information decomposition (pseudo-R², log-loss gain), the reliability noise-floor ceiling,
-  and the explained/residual fractions; plus the nonlinear-complement headroom.
+  normalised log-loss gain (pseudo-R²), legacy order-consistency-derived fields retained for
+  artifact compatibility but not interpreted as a reliability ceiling, and correct/incorrect
+  fractions; plus nonlinear-complement headroom.
 - `coefficients.csv` — the combined model's fitted axiom coefficients (interpretable
   decomposition), full-data fit.
 - `residual_profiles.csv` — long format: covariate, bin, n, OOF accuracy, signed residual.
@@ -144,12 +144,12 @@ Mirrors the Phase 0/1 discipline — hand-computable cases, no network:
 - `analysis/covariates.py`: a constructed pool+pairs+store frame with known ranks, scores,
   lengths and confidences → asserted covariate values (gaps, ratios, coverage, aggregated
   confidence), and the NaN path when a pair has only one presentation.
-- `analysis/decomposition.py`: known OOF probabilities → hand-computed log-loss, pseudo-R²
-  and explained/residual fractions; `reliability_ceiling` boundary values
-  (consistency 1.0 → 1.0, 0.5 → 0.5, monotone between).
-- `analysis/residual.py`: a synthetic frame where one content covariate perfectly predicts
-  the axiom residual → residual-model lift > 0 with CI above zero; a frame where covariates
-  are pure noise → lift ≈ 0, CI spanning zero (the §6.2 null path). Clustering returns the
+- `analysis/decomposition.py`: known OOF probabilities → hand-computed log-loss, normalised
+  log-loss gain and accuracy/error partitions. Order consistency is tested as a separate
+  descriptive output, never converted into a prediction ceiling.
+- `analysis/residual.py`: a synthetic frame where one content covariate predicts incremental
+  structure → corrected same-fold lift > 0 with CI above zero; pure-noise covariates → lift
+  ≈ 0 with a CI spanning zero. Clustering returns the
   planted number of groups on separable synthetic covariates.
 - `config.py`: `sources` parses and round-trips; a config without it stays valid (default
   empty).
@@ -172,28 +172,36 @@ Mirrors the Phase 0/1 discipline — hand-computable cases, no network:
 
    Qwen first (primary), flan-t5-large as replication (`--only-model` filter reused from the
    Phase 1 runners). Sanity-check the pooled CV accuracy lands in the 0.59–0.67 band from
-   Phase 1 §9 before trusting the residual numbers.
-6. Analysis pass: fill `phase2-design.md` §7 with the decomposition numbers, the
-   noise-floor estimate, the residual-model result and CIs, the gap-gradient resolution, the
-   cross-model/collection stability, and the §6 RQ4-emphasis decision with its evidence.
+   Phase 1's fitted range before interpreting downstream diagnostics.
+6. Analysis pass: fill `phase2-design.md` §5 with the existing-battery prediction, WordNet
+   ablation, corrected incremental diagnostic and exploratory scope analyses. Do not derive a
+   reliability/noise ceiling from order swaps or use RQ3 as a gate on RQ4.
    `notebooks/p2_overview.ipynb` is the working overview.
 
-`scripts/run_phase2.sh [all|qwen|flan]` wraps step 5 (fidelity throughout; there is no
-effectiveness gate in this phase).
+`scripts/run_phase2.sh [all|qwen|flan]` wraps step 5 (fidelity throughout; qrels are not used
+in this phase).
 
 ## 6. Operational risks
 
 - **Cache staleness.** RQ3 trusts the `data/processed/` stages and the store. All numbers
-  postdate the 2026-07-11 ir_axioms PROX fixes (Phase 1 §9); the runner records the store
+  postdate the 2026-07-11 ir_axioms PROX fixes (`phase1-design.md` §6); the runner records the store
   path and the axiom battery in `config.yaml` so a stale cache is detectable. `--refresh`
   recomputes the derived stages (never the verdicts).
-- **Leakage between covariates and axioms.** The residual model must not re-derive the
-  battery (design §8). Covariates are the non-axiom set of §3.2, the residual model is
-  conditioned on the axiom prediction, and the content-only covariate set is the one the
-  §6.1 gate reads — enforced in code by `CONTENT_COVARIATES`, not left to the caller.
-- **Confidence-margin availability.** The margin exists only where the store kept both
-  presentation orders; the per-feature NaN guard drops it per pair rather than dropping the
-  pair, so the content-only residual model (which excludes confidence) is unaffected.
+- **Covariate/axiom overlap.** Length and coverage overlap conceptually with LNC/DIV and AND.
+  The corrected comparison refits both arms inside identical folds; any lift remains an
+  association rather than proof of an independent mechanism.
+- **Confidence-margin availability.** The margin uses whichever presentations are available;
+  per-feature NaN handling does not drop unrelated content covariates.
 - **Small per-collection folds.** DL19's 43 queries make per-collection fits noisy; the
   pooled fit is the headline and the per-collection ones are robustness, reported with the
   same query-bootstrap CIs the Phase 1 profiles used.
+
+## 7. FLAN-T5-XL collection reproducibility
+
+Supplementary XL verdicts were collected append-only on the bronze host using the same prompt-v0
+label-likelihood implementation and top-10 order-swapped pairs as FLAN-T5-large. Collection used
+CPU `bfloat16` in the available ROCm container because the co-tenant GPU path was unavailable.
+Returned Parquet parts were analysed locally from cache. Scientific comparison depends on matched
+prompt/scoring/pool semantics; host and dtype are reproducibility metadata. Depth/scale results are
+in `phase2-design.md` §5.4 and the detailed Phase 2 record; chronology is in
+`research-logbook.md`.

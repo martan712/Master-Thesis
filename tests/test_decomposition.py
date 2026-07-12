@@ -3,12 +3,12 @@
 import numpy as np
 import pandas as pd
 
-from axiomrank import analysis
 from axiomrank.analysis.covariates import attach_covariates
 from axiomrank.analysis.decomposition import (
     decompose,
     information_decomposition,
     reliability_ceiling,
+    single_order_accuracy_sensitivity,
 )
 from axiomrank.analysis.residual import residual_clusters, residual_model, residual_profiles
 from axiomrank.config import load_config
@@ -65,6 +65,7 @@ def test_attach_covariates_missing_confidence_is_nan():
 # --- decomposition ---------------------------------------------------------------
 
 def test_reliability_ceiling_boundaries():
+    assert reliability_ceiling is single_order_accuracy_sensitivity
     assert reliability_ceiling(1.0) == 1.0
     assert reliability_ceiling(0.5) == 0.5
     assert reliability_ceiling(0.4) == 0.5  # below chance clamps
@@ -93,7 +94,12 @@ def test_decompose_perfect_feature():
     assert result["cv_accuracy"] == 1.0
     assert result["information"]["pseudo_r2"] > 0.5
     assert np.isclose(result["reliability_ceiling"], 0.5 * (1 + np.sqrt(0.5)))
-    assert result["reducible_residual_upper"] == 0.0  # ceiling below the achieved accuracy
+    assert result["single_order_accuracy_sensitivity"] == result["reliability_ceiling"]
+    assert result["reliability_ceiling_identified"] is False
+    assert result["reducible_residual_upper"] is None
+    assert result["oof_correct_fraction"] == 1.0
+    assert result["oof_error_fraction"] == 0.0
+    assert "explained_fraction" not in result  # accuracy is not variance explained
     assert not oof["is_residual"].any()
     assert "nonlinear_headroom" in result
 
@@ -110,6 +116,7 @@ def _oof_frame(d_len, y, oof_prob, n_q=10, per_q=4, seed=0):
                 "y_true": bool(y[k]), "oof_prob": float(oof_prob[k]),
                 "oof_correct": bool((oof_prob[k] >= 0.5) == y[k]),
                 "is_residual": bool((oof_prob[k] >= 0.5) != y[k]),
+                "AX": 0.0,
                 "d_len": float(d_len[k]),
             })
             k += 1
@@ -122,7 +129,7 @@ def test_residual_model_detects_planted_signal():
     d_len = np.where(y == 1, 1.0, -1.0)          # content covariate perfectly aligned
     oof_prob = np.full(n, 0.5)                     # axioms know nothing
     frame = _oof_frame(d_len, y, oof_prob)
-    res = residual_model(frame, ["d_len"], n_boot=300)
+    res = residual_model(frame, ["d_len"], ["AX"], n_boot=300)
     assert res["lift"] > 0.3 and res["lift_ci_lo"] > 0.0  # signal, CI above zero
 
 
@@ -133,7 +140,7 @@ def test_residual_model_null_on_noise():
     d_len = rng.normal(size=n)                     # uncorrelated with y
     oof_prob = np.full(n, 0.5)
     frame = _oof_frame(d_len, y, oof_prob)
-    res = residual_model(frame, ["d_len"], n_boot=300)
+    res = residual_model(frame, ["d_len"], ["AX"], n_boot=300)
     assert res["lift_ci_lo"] <= 0.0 <= res["lift_ci_hi"]  # CI spans zero
 
 
@@ -148,6 +155,20 @@ def test_residual_profiles_and_clusters():
     assert (prof["residual_rate"] == 1.0).all()    # every pair is a residual here
     clusters = residual_clusters(frame, ["d_len"], n_clusters=2)
     assert len(clusters) == 2 and clusters["size"].sum() == n
+
+
+def test_residual_cluster_exemplar_is_centroid_nearest_not_first_row():
+    frame = pd.DataFrame(
+        {
+            "query_id": ["outlier", "near1", "near2"],
+            "doc_id_1": ["a", "b", "c"],
+            "doc_id_2": ["x", "y", "z"],
+            "is_residual": [True, True, True],
+            "d_len": [100.0, 0.0, 1.0],
+        }
+    )
+    row = residual_clusters(frame, ["d_len"], n_clusters=1, n_exemplars=1).iloc[0]
+    assert not row["exemplars"].startswith("outlier:")
 
 
 # --- config ----------------------------------------------------------------------

@@ -1,10 +1,10 @@
-"""RQ3: the explained/residual decomposition (phase2-design.md, phase2-implementation.md §3).
+"""RQ3: compact existing-axiom prediction and error diagnostics.
 
 Pools the source grid cells named in the config (the two DL19/DL20 top-10 cells) from
-cache — zero model calls — and, per ranker, fits the combined axiom model, decomposes its
-verdicts into explained/residual with the information and noise-floor views, characterises
-the residual (profiles, a CV residual model with lift over axiom-only, clusters), and emits
-the joint-level gap gradient. Qwen is primary; flan-t5-large replicates.
+cache — zero model calls — and, per ranker, fits the combined axiom model, reports OOF
+prediction/error and information summaries, characterises errors (profiles, a corrected
+same-fold incremental model, exploratory clusters), and emits the joint-level gap gradient.
+Order-swap sensitivity remains a separate diagnostic and is not interpreted as noise.
 
 Usage:
     uv run python experiments/rq3_decomposition/run.py --config configs/rq3_pooled_top10.yaml
@@ -21,14 +21,18 @@ from axiomrank.analysis import CONTENT_COVARIATES, COVARIATE_COLUMNS, SIGNED_COV
 from axiomrank.config import load_config
 from axiomrank.pipeline import merged_cell_frame, stages
 
-# Degenerate columns dropped from the RQ3 feature set (phase1-design.md §9.3 decision 1):
+# Degenerate columns dropped from the RQ3 feature set (phase1-design.md §5):
 # TFC1@len{0.2,0.5} are bit-identical to strict TFC1, and TFC3 + its variants have <=4
 # evaluable pairs.
 DEGENERATE = {"TFC1@len0.2", "TFC1@len0.5", "TFC3", "TFC3@len0.2", "TFC3@len0.5"}
+POST_PHASE2_COLUMNS = {"VERB", "QCOV", "VERB@m0.2"}
 
 
 def _feature_sets(source_cfg) -> dict[str, list[str]]:
-    lexical = [s.column for s in source_cfg.axioms.lexical_specs if s.column not in DEGENERATE]
+    lexical = [
+        s.column for s in source_cfg.axioms.lexical_specs
+        if s.column not in DEGENERATE and s.column not in POST_PHASE2_COLUMNS
+    ]
     semantic = [s.column for s in source_cfg.axioms.semantic_specs]
     sets = {"lexical": lexical}
     if semantic:
@@ -88,14 +92,22 @@ def _run_model(pooled, per_collection, feature_sets, seed, metrics_dir):
         pooled, feature_sets["lexical"], position_consistency=_position_consistency(pooled),
         seed=seed,
     )
-    oof_cov = oof.merge(pooled[[*analysis.PAIR_KEY, *COVARIATE_COLUMNS]], on=analysis.PAIR_KEY)
+    oof_cov = oof.merge(
+        pooled[[*analysis.PAIR_KEY, *feature_sets["lexical"], *COVARIATE_COLUMNS]],
+        on=analysis.PAIR_KEY,
+        validate="one_to_one",
+    )
 
     analysis.residual_profiles(oof_cov, COVARIATE_COLUMNS).to_csv(
         metrics_dir / "residual_profiles.csv", index=False
     )
     residual = {
-        "all_covariates": analysis.residual_model(oof_cov, SIGNED_COVARIATES, seed=seed),
-        "content_only": analysis.residual_model(oof_cov, CONTENT_COVARIATES, seed=seed),
+        "all_covariates": analysis.residual_model(
+            oof_cov, SIGNED_COVARIATES, feature_sets["lexical"], seed=seed
+        ),
+        "content_only": analysis.residual_model(
+            oof_cov, CONTENT_COVARIATES, feature_sets["lexical"], seed=seed
+        ),
     }
     with open(metrics_dir / "residual_model.json", "w") as f:
         json.dump(residual, f, indent=2)
@@ -144,7 +156,7 @@ def _report(decomposition, residual, metrics_dir):
         "cv_accuracy": round(lex["cv_accuracy"], 3),
         "base_rate": round(lex["base_rate"], 3),
         "pseudo_r2": round(lex["information"]["pseudo_r2"], 4),
-        "reliability_ceiling": lex["reliability_ceiling"],
+        "single_order_accuracy_sensitivity": lex["single_order_accuracy_sensitivity"],
         "nonlinear_headroom": round(lex.get("nonlinear_headroom", float("nan")), 3),
         "residual_lift_content": round(residual["content_only"]["lift"], 4),
         "residual_lift_content_ci": [
@@ -196,6 +208,13 @@ def main() -> None:
         _report(decomposition, residual, metrics_dir)
 
         if args.uniform:
+            uniform_models = {r.model or "mock" for r in uniform_cfgs[0].all_rankers}
+            if model_name not in uniform_models:
+                print(
+                    f"[rq3] {model_name}: no configured uniform control; "
+                    "skipping wide-gap gradient"
+                )
+                continue
             print(f"[rq3] {model_name}: pooling {len(uniform_cfgs)} uniform cell(s)")
             pooled_uniform, _ = _pool(uniform_cfgs, ranker_cfg, args.refresh)
             uniform_features = _feature_sets(uniform_cfgs[0])

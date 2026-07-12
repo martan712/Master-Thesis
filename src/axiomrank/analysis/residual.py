@@ -1,28 +1,21 @@
-"""Characterising the axiom residual — the analysis that decides RQ4 (phase2-design.md §3.4).
+"""Exploratory characterisation of axiom-model errors (phase2-design.md §3).
 
-Three converging views of the pairs the combined axiom model gets wrong:
+Three complementary development-data views of pairs the combined axiom model gets wrong:
 
 1. :func:`residual_profiles` — out-of-fold accuracy and the signed residual, stratified by
    each non-axiom covariate (the gap gradient of §4 generalised).
 2. :func:`residual_model` — a query-grouped cross-validated model that predicts the LLM's
    verdict from the non-axiom covariates *conditioned on the axiom prediction*; its **lift**
    over the axiom-only baseline, with a query-bootstrap CI, is the operational test of
-   whether the residual is systematic (the §6.1 gate reads the content-only lift).
-3. :func:`residual_clusters` — clusters of the residual pairs with exemplars, turning a
-   statistical residual into formalisable RQ4 hypotheses.
+   whether prespecified covariates add held-out predictive value on development folds.
+3. :func:`residual_clusters` — exploratory clusters with representative exemplars, used only
+   as one source of RQ4 hypotheses alongside theory and literature.
 """
 
 import numpy as np
 import pandas as pd
 
 from axiomrank.analysis.verdicts import PAIR_KEY
-
-_EPS = 1e-12
-
-
-def _logit(p: np.ndarray) -> np.ndarray:
-    p = np.clip(p, _EPS, 1 - _EPS)
-    return np.log(p / (1 - p))
 
 
 def _bin_labels(values: pd.Series, n_bins: int) -> pd.Series:
@@ -65,58 +58,85 @@ def residual_profiles(
     return pd.DataFrame(rows)
 
 
-def _grouped_oof_correct(X: np.ndarray, y: np.ndarray, groups: np.ndarray,
-                         seed: int, n_folds: int) -> np.ndarray:
+def _grouped_oof_correct(
+    axiom_X: np.ndarray,
+    cov_X: np.ndarray | None,
+    y: np.ndarray,
+    groups: np.ndarray,
+    seed: int,
+    n_folds: int,
+) -> np.ndarray:
     from sklearn.linear_model import LogisticRegression
-    from sklearn.model_selection import GroupKFold
+    from sklearn.preprocessing import StandardScaler
 
-    n_folds = min(n_folds, len(np.unique(groups)))
+    from axiomrank.analysis.joint import grouped_splits
+
     pred = np.full(len(y), np.nan)
-    for train, test in GroupKFold(n_splits=n_folds).split(X, y, groups):
-        clf = LogisticRegression(max_iter=1000, random_state=seed).fit(X[train], y[train])
-        pred[test] = clf.predict(X[test])
+    for train, test in grouped_splits(axiom_X, y, groups, n_folds):
+        train_X, test_X = axiom_X[train], axiom_X[test]
+        if cov_X is not None:
+            # Covariates have heterogeneous units (BM25 score, tokens, proportions).
+            # Fit scaling on training queries only, while leaving ternary axioms in their
+            # Phase-1 representation so the baseline is exactly comparable to joint_fit.
+            scaler = StandardScaler().fit(cov_X[train])
+            train_X = np.hstack([train_X, scaler.transform(cov_X[train])])
+            test_X = np.hstack([test_X, scaler.transform(cov_X[test])])
+        clf = LogisticRegression(max_iter=1000, random_state=seed).fit(train_X, y[train])
+        pred[test] = clf.predict(test_X)
     return pred.astype(bool) == y
 
 
 def residual_model(
     oof_with_covariates: pd.DataFrame,
     covariate_names: list[str],
+    axiom_names: list[str],
     seed: int = 42,
     n_folds: int = 5,
     n_boot: int = 2000,
 ) -> dict:
-    """Grouped-CV lift of the covariates over the axiom-only baseline at predicting the LLM.
+    """Query-grouped CV lift from adding covariates to the axiom features.
 
-    The baseline predicts the verdict from the axiom model's OOF logit alone (i.e. the
-    axiom prediction); the covariate model adds the signed non-axiom covariates. A positive
-    lift whose query-bootstrap CI is above zero means the covariates carry structure the
-    axioms miss — the systematic residual. Returns accuracies, the lift and its 95% CI.
+    Both models are refit inside the same query-disjoint folds: baseline = raw ternary axiom
+    columns; full = axioms plus training-fold-standardised covariates. This direct nested
+    comparison avoids a subtle stacked-CV leak: first-stage OOF logits for meta-training
+    queries may have been fitted using labels from the meta-test queries. A positive
+    query-macro lift whose query-bootstrap CI is above zero means the covariates carry
+    structure the axioms miss.
     """
-    df = oof_with_covariates.dropna(subset=covariate_names).reset_index(drop=True)
+    if not axiom_names:
+        raise ValueError("residual_model needs the axiom feature columns")
+    df = oof_with_covariates.dropna(subset=[*axiom_names, *covariate_names]).reset_index(drop=True)
     y = df["y_true"].to_numpy(dtype=bool)
     groups = df["query_id"].to_numpy()
-    axiom_logit = _logit(df["oof_prob"].to_numpy(dtype=float)).reshape(-1, 1)
+    axiom_X = df[axiom_names].to_numpy(dtype=float)
     cov = df[covariate_names].to_numpy(dtype=float)
 
-    base_correct = _grouped_oof_correct(axiom_logit, y, groups, seed, n_folds)
-    full_correct = _grouped_oof_correct(np.hstack([axiom_logit, cov]), y, groups, seed, n_folds)
+    base_correct = _grouped_oof_correct(axiom_X, None, y, groups, seed, n_folds)
+    full_correct = _grouped_oof_correct(axiom_X, cov, y, groups, seed, n_folds)
 
     lift_per_pair = full_correct.astype(float) - base_correct.astype(float)
     rng = np.random.default_rng(seed)
     unique_groups = np.unique(groups)
     idx_by_group = {g: np.where(groups == g)[0] for g in unique_groups}
+    base_by_query = np.array([base_correct[idx_by_group[g]].mean() for g in unique_groups])
+    full_by_query = np.array([full_correct[idx_by_group[g]].mean() for g in unique_groups])
+    lift_by_query = full_by_query - base_by_query
     boot = np.empty(n_boot)
     for b in range(n_boot):
-        picked = rng.choice(unique_groups, size=len(unique_groups), replace=True)
-        rows = np.concatenate([idx_by_group[g] for g in picked])
-        boot[b] = lift_per_pair[rows].mean()
+        picked = rng.choice(len(unique_groups), size=len(unique_groups), replace=True)
+        boot[b] = lift_by_query[picked].mean()
 
     return {
+        "axiom_features": axiom_names,
         "features": covariate_names,
         "n_pairs": int(len(y)),
-        "base_accuracy": float(base_correct.mean()),
-        "cov_accuracy": float(full_correct.mean()),
-        "lift": float(lift_per_pair.mean()),
+        "n_queries": int(len(unique_groups)),
+        "base_accuracy": float(base_by_query.mean()),
+        "cov_accuracy": float(full_by_query.mean()),
+        "lift": float(lift_by_query.mean()),
+        "pair_micro_base_accuracy": float(base_correct.mean()),
+        "pair_micro_cov_accuracy": float(full_correct.mean()),
+        "pair_micro_lift": float(lift_per_pair.mean()),
         "lift_ci_lo": float(np.quantile(boot, 0.025)),
         "lift_ci_hi": float(np.quantile(boot, 0.975)),
     }
@@ -139,12 +159,19 @@ def residual_clusters(
     if len(res) < n_clusters:
         return pd.DataFrame()
     X = StandardScaler().fit_transform(res[covariate_names].to_numpy(dtype=float))
-    labels = KMeans(n_clusters=n_clusters, random_state=seed, n_init=10).fit_predict(X)
-    res = res.assign(_cluster=labels)
+    fit = KMeans(n_clusters=n_clusters, random_state=seed, n_init=10).fit(X)
+    labels = fit.labels_
+    distances = np.linalg.norm(X - fit.cluster_centers_[labels], axis=1)
+    res = res.assign(_cluster=labels, _centroid_distance=distances)
 
     rows = []
     for cid, g in res.groupby("_cluster", sort=True):
-        exemplars = g[PAIR_KEY].head(n_exemplars).to_dict("records")
+        # Choose representative observations, not whichever cache rows appear first.
+        exemplars = (
+            g.sort_values("_centroid_distance")[PAIR_KEY]
+            .head(n_exemplars)
+            .to_dict("records")
+        )
         rows.append(
             {
                 "cluster": int(cid),

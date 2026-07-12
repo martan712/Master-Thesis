@@ -10,7 +10,7 @@
 # RQ3 is an analysis phase: it pools the cached DL19+DL20 top-10 verdicts (already in the
 # append-only preference store from Phase 1) and decomposes them. It collects ZERO new
 # model verdicts — no vLLM endpoint or local model stack is needed, only local CPU. There
-# is no effectiveness gate in this phase; fidelity throughout.
+# contains no qrel-based effectiveness analysis; fidelity is primary throughout.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -34,7 +34,7 @@ if [[ "$mode" != qwen ]]; then
 fi
 
 step "phase 2 decomposition done — results under results/rq3_decomposition/pooled_top10/"
-echo "next: the analysis pass — fill docs/phase2-design.md §7 with the decomposition numbers,"
-echo "      the noise-floor estimate, the residual-model result and CIs, the gap-gradient"
-echo "      resolution, the cross-model/collection stability, and the §6 RQ4-emphasis decision."
+echo "next: the analysis pass — regenerate the results summarized in docs/phase2-design.md §5,"
+echo "      including the corrected incremental-model CIs, rank-gap scope analysis,"
+echo "      query-set robustness checks, and evidence-graded handoff to RQ4."
 echo "      notebooks/p2_overview.ipynb is the working overview."

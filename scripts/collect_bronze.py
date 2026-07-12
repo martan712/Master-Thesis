@@ -1,4 +1,7 @@
-"""Collect hf-backend PRP verdicts off-box (Phase 2b, docs/phase2b-ranker-scale.md §4b).
+"""Collect HF-backend PRP verdicts off-box for the Phase 2 system diagnostic.
+
+Scientific scope and interpretation are in ``docs/phase2-design.md`` §5.4; operational
+provenance is recorded in ``docs/research-logbook.md``.
 
 Runs the exact `HFPairwiseRanker` scoring (prompt v0, "Passage A"/"Passage B" label
 log-likelihood, order-swap) against a shipped `pairs.parquet`, on whatever `--device`

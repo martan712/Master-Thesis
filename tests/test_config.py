@@ -85,3 +85,26 @@ def test_grid_configs_parse_with_unique_columns():
         assert cfg.all_rankers, path.name
         columns = [s.column for s in cfg.axioms.specs]
         assert len(columns) == len(set(columns)), f"duplicate axiom columns in {path.name}"
+
+
+def test_phase2_feature_sets_exclude_later_rq4_axioms():
+    import importlib.util
+
+    def load_runner(relative, name):
+        spec = importlib.util.spec_from_file_location(name, CONFIGS_DIR.parent / relative)
+        module = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(module)
+        return module
+
+    rq2_runner = load_runner("experiments/rq2_semantic_agreement/run.py", "rq2_runner")
+    rq3_runner = load_runner("experiments/rq3_decomposition/run.py", "rq3_runner")
+
+    cfg = load_config(CONFIGS_DIR / "rq2_dl19_top10.yaml")
+    rq2 = rq2_runner._analysis_feature_sets(cfg)
+    rq3 = rq3_runner._feature_sets(cfg)
+    later = {"VERB", "QCOV", "VERB@m0.2"}
+    assert later.isdisjoint(rq2["lexical"])
+    assert later.isdisjoint(rq2["combined"])
+    assert later.isdisjoint(rq3["lexical"])
+    assert later.isdisjoint(rq3["lexical_semantic"])

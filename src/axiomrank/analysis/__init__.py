@@ -27,6 +27,7 @@ from axiomrank.analysis.decomposition import (
     decompose,
     information_decomposition,
     reliability_ceiling,
+    single_order_accuracy_sensitivity,
 )
 from axiomrank.analysis.figures import gap_figure
 from axiomrank.analysis.gap import gap_gradient
@@ -60,6 +61,7 @@ __all__ = [
     "model_pair_verdicts",
     "nontransitivity_rate",
     "reliability_ceiling",
+    "single_order_accuracy_sensitivity",
     "residual_clusters",
     "residual_model",
     "residual_profiles",

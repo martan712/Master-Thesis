@@ -60,6 +60,7 @@ def test_joint_fit_perfect_single_feature():
 
     assert stats["n_decisive_pairs"] == 16
     assert stats["base_rate"] == 0.5
+    assert stats["cv_null_accuracy"] == 0.5
     assert stats["majority_vote_accuracy"] == 1.0
     assert stats["cv_accuracy"] == 1.0
     assert stats["cv_auc"] == 1.0
@@ -67,6 +68,25 @@ def test_joint_fit_perfect_single_feature():
     assert stats["coefficients"]["AX"] > 0
     assert len(oof) == 16
     assert oof["oof_correct"].all()
+    assert oof["oof_null_prob"].eq(0.5).all()
+
+
+def test_joint_fit_class_prior_is_strictly_out_of_fold():
+    # Every held-out query has the opposite label from the majority of its training
+    # queries. A full-data prior would score 0.5 here; the honest OOF null scores 0.
+    merged = pd.DataFrame(
+        {
+            "query_id": ["q1", "q2", "q3", "q4"],
+            "doc_id_1": ["a", "b", "c", "d"],
+            "doc_id_2": ["w", "x", "y", "z"],
+            "model_pref": [1, 1, -1, -1],
+            "AX": [1, 1, -1, -1],
+        }
+    )
+    stats, oof = analysis.joint_fit(merged, ["AX"], n_folds=4)
+    assert stats["base_rate"] == 0.5  # descriptive, full-data class balance
+    assert stats["cv_null_accuracy"] == 0.0
+    assert not oof["oof_null_correct"].any()
 
 
 def test_attach_rank_gap_from_pool():
