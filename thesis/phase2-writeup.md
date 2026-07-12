@@ -228,6 +228,66 @@ residual cluster on both models is a long-document one, and it subsumes the Phas
 DIV-with-gap reversal), and a **query-coverage constraint** (a residual preference for
 broader query-term coverage not captured by AND or the TF axioms).
 
+### 3.8 Ranker-scale validation — competence is real; the anchor gap is depth, not model (Phase 2b)
+
+One soft spot in Phase 1's gate could have unseated all of the above: reranked nDCG@10 ≈ 0.55
+sits below the ≈ 0.65–0.70 literature anchor for strong PRP rerankers (Qin et al.,
+PRP-Allpair), leaving open the worry that the residual RQ4 targets is an artefact of *weak*
+rankers rather than a property of pairwise LLM ranking. Scaling the FLAN-T5 family up one rung
+(flan-t5-large 0.8B → flan-t5-xl 3B, same prompt, scoring, and top-10 protocol; verdicts
+collected on bronze) tests it. flan-t5-xl reranks to nDCG@10 **0.526 (DL19) / 0.533 (DL20)** —
+essentially flan-large's level and still ~0.15 below the anchor, which on its face reads as a
+failed competence check. It is not: the gap is a **rerank-depth mismatch**, and four
+measurements localise it away from the model.
+
+First, the verdicts are relevance-aligned: pairwise accuracy against the qrels, on judged pairs
+with a strict grade ordering, is **0.838 / 0.829** for flan-t5-xl and 0.859 / 0.824 for
+flan-large — both order relevant-vs-less-relevant pairs correctly about five times in six, so
+the label-log-likelihood scoring is faithful. Second, xl is *more* decisive than large, not
+less (position-consistency 0.81 vs 0.66, a lower tie rate), so the shortfall is not tie-collapse
+or prompt noise. Third, the depth-10 protocol caps the metric: perfectly reordering BM25's
+top-10 by the qrels — the oracle ceiling for *any* reranker confined to that pool — yields
+nDCG@10 only **0.575 / 0.583**, and xl reaches **~91 %** of it. Fourth, the anchor lives at a
+different depth: the oracle nDCG@10 ceiling climbs **0.58 (depth 10) → 0.72 (20) → 0.88 (100)**,
+and the paper's xl anchor (0.698 / 0.681) sits at the depth-20 level because PRP-Allpair reranks
+BM25 **top-100**, whereas our decomposition protocol reranks **top-10**. The cause is
+first-stage recall — BM25 recall@10 is only 0.12 / 0.18, so most relevant documents sit at ranks
+11–100, outside a depth-10 pool — so 0.70 is unreachable here regardless of model quality.
+
+The competence check therefore **passes once depth-matched**, and the anchor is re-based
+accordingly: the yardstick is not the paper's absolute depth-100 nDCG@10 but (i) pairwise
+accuracy against the qrels (~0.83) and (ii) the fraction of the depth-10 oracle ceiling captured
+(~0.91). On both, flan-t5-xl — and flan-large — are strong rankers, and the Phase 1 soft spot is
+closed as a depth artefact, not ranker mediocrity. This is the reassuring direction for the
+thesis: the residual RQ4 develops is a property of competent pairwise LLM ranking, with no
+weak-ranker confound, and depth-10 is the *deliberate* scope — the axiom-discriminating
+comparisons are between plausibly-relevant top documents, whereas a deeper pool would flood the
+pair set with easy relevant-vs-junk pairs that inflate nDCG but dilute the residual. An
+apples-to-apples absolute reproduction remains available as a follow-up if a reviewer presses:
+one top-20 all-pairs cell (~4× the collection cost) should land flan-t5-xl in the paper's
+0.65–0.70 band; full top-100 (~110×) is rejected as costly and off-target.
+
+The second question the ladder answers — does the axiom-explained fraction rise as the ranker
+gets stronger? — is the one that actually bears on RQ4, and the answer is reassuring. Running
+the §3.1 decomposition on the new rung and reading it against the existing two:
+
+| rung | scale | n | CV acc | gain | pseudo-R² | reducible ↑ |
+|---|---|---|---|---|---|---|
+| flan-t5-large | 0.8B | 2,931 | 0.666 | +0.079 | **0.074** | 0.131 |
+| flan-t5-xl | 3B | 3,507 | 0.639 | +0.060 | **0.059** | 0.255 |
+| Qwen3.6-35B | 35B | 3,158 | 0.629 | +0.070 | **0.057** | 0.210 |
+
+Within the FLAN family, scaling 0.8B → 3B *lowers* the explained fraction (pseudo-R²
+0.074 → 0.059) and *raises* the reducible residual (0.131 → 0.255); the 35B cross-architecture
+point continues rather than reverses the trend (0.057). Axiom-explainability does not grow with
+ranker strength — if anything it thins — so the "the residual is an artefact of weak rankers,
+and a strong ranker would be more axiom-reducible" objection is refuted: the stronger ranker is
+*less* axiom-explained and leaves RQ4 *more* to characterise, exactly the within-Phase-2 hint
+(flan-large's higher pseudo-R² than Qwen's) now confirmed under a controlled scale contrast. The
+flan-t5-xxl 11B rung is a fourth anchored point that would tighten the trend line but is
+deferred (≈4.5 days CPU under the contended-iGPU constraint of §2b's remote setup); the
+three-rung result already settles the question the objection raised.
+
 ## 4. Discussion
 
 Phase 2 turns Phase 1's floor into a map. The explained part of a strong LLM ranker's
