@@ -1,17 +1,18 @@
 """Effectiveness evaluation of runs against qrels, via ir_measures.
 
-The effectiveness gate (phase1-design.md §4) uses this module to check that the LLM's
+The effectiveness reference (phase1-design.md §4.4) uses this module to check that the LLM's
 cached verdicts actually make a ranker that beats BM25 on nDCG@10 before Phase 1's
 top-10 residual is treated as skill rather than noise. The check costs zero new model
 calls: it reuses the verdicts already in the preference store.
 """
 
+import numpy as np
 import pandas as pd
 from ir_measures import AP, nDCG
 
 from axiomrank import paths
 
-# nDCG@10 primary, AP (aggregates to MAP) secondary — the effectiveness gate metrics
+# nDCG@10 primary, AP (aggregates to MAP) secondary — the effectiveness-reference metrics
 # (phase1-design.md §4). Literature anchors: BM25 ~0.50 nDCG@10 on DL19/DL20, competent
 # PRP-allpair setups ~0.65-0.70.
 DEFAULT_METRICS = (nDCG @ 10, AP)
@@ -71,16 +72,30 @@ def compare_runs(
     baseline: pd.DataFrame,
     reranked: pd.DataFrame,
     metrics=DEFAULT_METRICS,
+    n_bootstrap: int = 10_000,
+    seed: int = 42,
 ) -> tuple[pd.DataFrame, dict]:
     """Paired per-query comparison of two `evaluate_run` frames.
 
     Joins on `query_id` and, per metric, adds a `<metric>_delta` column
     (reranked - baseline). Returns the per-query frame and a summary dict with the
-    baseline/reranked means, the mean delta and win/tie/loss counts per metric — an
-    honest paired comparison, not two disembodied means.
+    baseline/reranked means, the mean delta, its paired query-bootstrap 95% interval,
+    and win/tie/loss counts per metric — an honest paired comparison, not two
+    disembodied means. Queries are the independent resampling unit.
     """
     names = metric_names(metrics)
-    merged = baseline.merge(reranked, on="query_id", suffixes=("_baseline", "_reranked"))
+    merged = baseline.merge(
+        reranked,
+        on="query_id",
+        suffixes=("_baseline", "_reranked"),
+        how="outer",
+        validate="one_to_one",
+        indicator=True,
+    )
+    if not (merged["_merge"] == "both").all():
+        counts = merged["_merge"].value_counts().to_dict()
+        raise ValueError(f"baseline/reranked query sets do not match exactly: {counts}")
+    merged = merged.drop(columns="_merge")
 
     summary: dict[str, dict] = {}
     for name in names:
@@ -88,10 +103,21 @@ def compare_runs(
         rerank = merged[f"{name}_reranked"]
         delta = rerank - base
         merged[f"{name}_delta"] = delta
+        values = delta.to_numpy(dtype=float)
+        if len(values) and n_bootstrap > 0:
+            rng = np.random.default_rng(seed)
+            draws = rng.choice(values, size=(n_bootstrap, len(values)), replace=True)
+            boot = draws.mean(axis=1)
+            ci_lo, ci_hi = (float(x) for x in np.quantile(boot, [0.025, 0.975]))
+        else:
+            ci_lo = ci_hi = float("nan")
         summary[name] = {
             "mean_baseline": float(base.mean()),
             "mean_reranked": float(rerank.mean()),
             "mean_delta": float(delta.mean()),
+            "delta_ci_lo": ci_lo,
+            "delta_ci_hi": ci_hi,
+            "n_bootstrap": int(n_bootstrap),
             "wins": int((delta > 0).sum()),
             "ties": int((delta == 0).sum()),
             "losses": int((delta < 0).sum()),

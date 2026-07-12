@@ -4,7 +4,9 @@ Synthetic frames only — no JVM, no network, no shared-state reads. The Copelan
 are worked out by hand in the comments so the expected orders are auditable.
 """
 
+import numpy as np
 import pandas as pd
+import pytest
 
 from axiomrank import ranking
 
@@ -140,10 +142,27 @@ def test_compare_runs_hand_computed():
     assert abs(ndcg["mean_delta"]) < 1e-12
     assert (ndcg["wins"], ndcg["ties"], ndcg["losses"]) == (1, 1, 1)
     assert ndcg["n_queries"] == 3
+    assert ndcg["delta_ci_lo"] <= 0 <= ndcg["delta_ci_hi"]
+    assert ndcg["n_bootstrap"] == 10_000
     assert summary["AP"]["wins"] == 1 and summary["AP"]["losses"] == 1
 
     row = per_query[per_query["query_id"] == "q1"].iloc[0]
     assert abs(row["nDCG@10_delta"] - 0.2) < 1e-12
+
+
+def test_compare_runs_bootstrap_ci_is_paired_over_queries():
+    baseline = pd.DataFrame({"query_id": ["q1", "q2"], "nDCG@10": [0.2, 0.8], "AP": [0.1, 0.7]})
+    reranked = pd.DataFrame({"query_id": ["q1", "q2"], "nDCG@10": [0.3, 0.9], "AP": [0.2, 0.8]})
+    _, summary = ranking.compare_runs(baseline, reranked, n_bootstrap=500, seed=3)
+    assert np.isclose(summary["nDCG@10"]["delta_ci_lo"], 0.1)
+    assert np.isclose(summary["nDCG@10"]["delta_ci_hi"], 0.1)
+
+
+def test_compare_runs_rejects_mismatched_query_sets():
+    baseline = pd.DataFrame({"query_id": ["q1"], "nDCG@10": [0.2], "AP": [0.1]})
+    reranked = pd.DataFrame({"query_id": ["q2"], "nDCG@10": [0.3], "AP": [0.2]})
+    with pytest.raises(ValueError, match="do not match exactly"):
+        ranking.compare_runs(baseline, reranked)
 
 
 def test_evaluate_run_metric_plumbing():

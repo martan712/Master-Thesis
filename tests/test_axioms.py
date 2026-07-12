@@ -72,3 +72,15 @@ def test_prox1_prefers_query_terms_closer_together():
     )
     result = axiom_preferences(pool, pairs, ["PROX1"])
     assert result["PROX1"].iloc[0] == 1
+
+
+def test_prox1_is_neutral_for_adjacent_terms_in_opposite_orders():
+    # Distance must be symmetric in term order. The upstream 1.1.2 expression
+    # abs(pos1-pos2-1) assigns distances 2 and 0 to these equally adjacent cases.
+    pool, pairs = make_frames(
+        "ant zebra",
+        "ant zebra house tree",
+        "zebra ant house tree",
+    )
+    result = axiom_preferences(pool, pairs, ["PROX1"])
+    assert result["PROX1"].iloc[0] == 0

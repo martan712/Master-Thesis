@@ -1,4 +1,4 @@
-# Effectiveness gate: DL19 × top-10 all-pairs (phase1-design.md §4). Copeland-aggregate
+# Effectiveness reference: DL19 × top-10 all-pairs (phase1-design.md §4.4). Copeland-aggregate
 # each ranker's cached pairwise verdicts (= PRP-allpair) into a ranking and compare it to
 # the BM25 baseline on nDCG@10 / MAP. Verdicts are shared with rq1_dl19_top10 through the
 # preference store (same dataset/model/prompt_version) → ZERO new model calls here.
@@ -34,7 +34,7 @@ rankers:
     prompt_version: v0
     order_swap: true
     max_chars: 2000
-  # flan-t5-xl (3B) scale rung — Phase 2b (docs/phase2b-ranker-scale.md). Verdicts are
+  # flan-t5-xl (3B) supplementary system diagnostic (docs/phase2-design.md §5.4). Verdicts are
   # collected on bronze (CPU, bf16; the iGPU is queue-contended) and synced into the store.
   - backend: hf
     model: google/flan-t5-xl

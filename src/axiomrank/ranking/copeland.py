@@ -4,9 +4,10 @@ This is the generic pairwise->ranking path: `copeland_ranking` aggregates *any*
 collapsed pair-verdict frame (the LLM's cached verdicts today, axiom majority votes
 later) into a ranked run compatible with ir_measures/pyterrier; nothing here is
 LLM-specific. Copeland scoring over a *complete* top-k tournament (every pair scored)
-is exactly PRP-allpair from the listwise-reranking literature (Qin et al., "Large
-Language Models are Effective Text Rankers with Pairwise Ranking Prompting"), so runs
-built this way are directly comparable to published PRP numbers.
+uses the same win/loss aggregation family as PRP-allpair in the listwise-reranking
+literature (Qin et al., "Large Language Models are Effective Text Rankers with Pairwise
+Ranking Prompting"). Our protocol first collapses order-inconsistent presentations to
+ties, so numerical results are not exact protocol replications of the published runs.
 """
 
 import pandas as pd

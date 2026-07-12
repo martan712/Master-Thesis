@@ -3,7 +3,7 @@
 
 TF-LNC and M-TDC have hardcoded preconditions in ir_axioms 1.1.2 (exact non-query
 length equality; exactly equal total query-term mass), which leaves them with ~0-5%
-coverage on natural pairs (phase0-design.md §7.3). The subclasses here replace those
+coverage on natural pairs (phase1-design.md §3.1). The subclasses here replace those
 exact equalities with a relative tolerance, `margin_fraction`, and are otherwise
 verbatim ports of the upstream preference logic — pinned to ir_axioms 1.1.2; re-check
 on upgrade. Margin 0 reproduces the strict axiom.
@@ -163,7 +163,13 @@ class RelaxedMTdcAxiom(ModifiedTdcAxiom):
 def _average_between_query_terms_deterministic(
     query_terms: AbstractSet[str], document_terms: Sequence[str]
 ) -> float:
-    """Upstream's between-terms average with a pinned term-pair iteration order."""
+    """Mean number of tokens between query-term first occurrences.
+
+    ir_axioms 1.1.2 uses ``abs(pos1 - pos2 - 1)``, which is asymmetric: adjacent terms
+    can have distance zero or two solely depending on which term is passed first. Sorting
+    the set only makes that bug deterministic. The mathematically symmetric between-token
+    distance is ``max(abs(pos1 - pos2) - 1, 0)``.
+    """
     query_term_pairs = list(combinations(sorted(query_terms), 2))
     if len(query_term_pairs) == 0:
         # Single-term query.
@@ -173,20 +179,21 @@ def _average_between_query_terms_deterministic(
     for term1, term2 in query_term_pairs:
         element1_position = document_terms.index(term1)
         element2_position = document_terms.index(term2)
-        number_words += abs(element1_position - element2_position - 1)
+        number_words += max(abs(element1_position - element2_position) - 1, 0)
     return number_words / len(query_term_pairs)
 
 
 @inject
 @dataclass(frozen=True, kw_only=True)
 class DeterministicProx1Axiom(Prox1Axiom):
-    """PROX1 with the query-term-pair iteration order pinned.
+    """PROX1 with deterministic iteration and a symmetric position distance.
 
     Upstream iterates `combinations()` of a *set* of query terms, but its distance
     `abs(pos1 - pos2 - 1)` is asymmetric in the pair order, so PROX1's output depends
     on the process hash seed (~3% of DL19 top-10 pairs flip between identical runs).
-    Sorting the terms first keeps upstream's formula verbatim (asymmetry included)
-    while making runs reproducible. Pinned to ir_axioms 1.1.2; re-check on upgrade.
+    Sorting pins iteration and the corrected between-token formula removes the arbitrary
+    lexical-order effect. This is a bug-fixed local variant, not byte-identical upstream
+    PROX1. Pinned to ir_axioms 1.1.2; re-check on upgrade.
     """
 
     def preference(

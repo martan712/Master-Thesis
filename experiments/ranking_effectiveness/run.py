@@ -1,4 +1,4 @@
-"""Phase 1 effectiveness gate: do the pairwise verdicts make a ranker? (phase1-design.md §4)
+"""Phase 1 depth-matched effectiveness reference (phase1-design.md §4.4).
 
 Per grid cell (one config = collection × top-10 all-pairs, a list of rankers), this
 aggregates each ranker's cached pairwise verdicts into a Copeland ranking (= PRP-allpair)
@@ -73,7 +73,9 @@ def main() -> None:
         reranked_run = ranking.copeland_ranking(verdicts, pool)
         reranked_perq = ranking.evaluate_run(reranked_run, cfg.dataset.irds_id, metrics)
 
-        per_query, summary = ranking.compare_runs(baseline_perq, reranked_perq, metrics)
+        per_query, summary = ranking.compare_runs(
+            baseline_perq, reranked_perq, metrics, n_bootstrap=10_000, seed=cfg.seed
+        )
         consistency = analysis.consistency_stats(verdicts)
 
         metrics_dir = out / "metrics" / model_name.replace("/", "__")
@@ -90,12 +92,16 @@ def main() -> None:
             json.dump(report, f, indent=2)
 
         print(f"      -> {metrics_dir}")
-        print(f"      {'metric':>10}  {'BM25':>7}  {'reranked':>9}  {'delta':>7}  W/T/L")
+        print(
+            f"      {'metric':>10}  {'BM25':>7}  {'reranked':>9}  "
+            f"{'delta [95% CI]':>28}  W/T/L"
+        )
         for name in names:
             s = summary[name]
             print(
                 f"      {name:>10}  {s['mean_baseline']:7.4f}  {s['mean_reranked']:9.4f}  "
-                f"{s['mean_delta']:+7.4f}  {s['wins']}/{s['ties']}/{s['losses']}"
+                f"{s['mean_delta']:+7.4f} [{s['delta_ci_lo']:+.4f}, "
+                f"{s['delta_ci_hi']:+.4f}]  {s['wins']}/{s['ties']}/{s['losses']}"
             )
 
 

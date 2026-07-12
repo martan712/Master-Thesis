@@ -1,5 +1,8 @@
 # Phase 1 Implementation — Measurement, RQ1–RQ2 (engineering plan)
 
+> **Status: executed.** This file is the implementation and reproduction record; scientific
+> completed results are recorded in `phase1-design.md` §6; chronology is in `research-logbook.md`.
+
 > Companion document: the scientific design — framing, grid rationale, battery tiers,
 > relaxed-precondition rationale, analyses and replication targets — lives in
 > `phase1-design.md`. This document holds the engineering plan.
@@ -29,7 +32,7 @@ The DL19 top-10 verdicts already exist in the store; only the following cells ar
 All runs are resumable (lookup-before-call); order swap stays mandatory everywhere. k=20
 pools remain a fallback if the gradient analysis wants more mid-gap pairs, not a default.
 
-The **effectiveness gate** (`phase1-design.md` §4) adds **zero presentations**: it
+The **effectiveness reference** (`phase1-design.md` §4.4) adds **zero presentations**: it
 Copeland-aggregates the top-10 all-pairs verdicts already collected for RQ1 (keyed by
 dataset/model/prompt_version in the store) and re-reads them. Its only new cost is local
 CPU — Copeland scoring and an `ir_measures` pass over the qrels.
@@ -56,7 +59,7 @@ ranking/          NEW: generic pairwise->ranking (Copeland = PRP-allpair, copela
                     reused for axiom-vote rankings later
 experiments/rq1_lexical_agreement/run.py   grid cell -> profiles + joint fit + gap CSVs
 experiments/rq2_semantic_agreement/run.py  rq1 + semantic battery + lexical-vs-combined delta
-experiments/ranking_effectiveness/run.py   NEW: the effectiveness gate (phase1-design §4)
+experiments/ranking_effectiveness/run.py   NEW: the effectiveness reference (phase1-design §4.4)
 ```
 
 `ranking/` is deliberately LLM-agnostic: `copeland_ranking` takes any
@@ -75,7 +78,7 @@ One config per grid cell (`rq1_dl19_top10.yaml`, `rq1_dl19_uniform.yaml`,
 `rq1_dl20_top10.yaml`, `rq1_dl20_uniform.yaml`, `rq2_dl19_top10.yaml`, …), each listing
 both rankers; outputs land under `results/<experiment>/<variant>/metrics/<model>/` with
 the exact config alongside, and intermediates cache under
-`data/processed/<experiment>/<variant>/`. The effectiveness gate reuses the same scheme:
+`data/processed/<experiment>/<variant>/`. The effectiveness reference reuses the same scheme:
 `eff_dl19_top10.yaml` / `eff_dl20_top10.yaml` copy the dataset/first_stage/pairs/rankers
 blocks of the matching `rq1_*` cell verbatim (so the verdict keys line up) with an empty
 axioms block, plus `eff_smoke.yaml` (scifact + mock) for the end-to-end check.
@@ -99,7 +102,7 @@ The `ranking_effectiveness` runner writes, per grid cell × model, under
 
 ## 4. Relaxation levers: ir_axioms mechanics
 
-The scientific rationale for each lever is in `phase1-design.md` §5.2; the mechanics
+The scientific rationale for each lever is in `phase1-design.md` §3.1; the mechanics
 (verified against ir_axioms 1.1.2) are:
 
 | axiom | strict precondition | relaxation lever |
@@ -150,12 +153,12 @@ Mirrors the Phase 0 test discipline:
    1. Qwen DL20 top10 (~31 min) — the replication headline.
    2. Qwen DL19 uniform50 + DL20 uniform50 (~1 h) — the gradient.
    3. flan-t5-large, same three cells, background CPU (~4.6 h).
-6. Effectiveness gate (`phase1-design.md` §4) once the top-10 verdicts are in the store —
+6. Effectiveness reference (`phase1-design.md` §4.4) once the top-10 verdicts are in the store —
    zero new model calls. Qwen must clearly beat BM25 on nDCG@10 on both collections, else
    stop-and-fix before the analysis pass.
-7. Analysis pass over all cells; `phase1-design.md` §9 gets the numbers and the four
+7. Analysis pass over all cells; `phase1-design.md` §6 gets the numbers and the
    decisions (battery+margins for RQ3, similarity backend, poolability of collections,
-   fastText go/no-go), plus the effectiveness-gate verdict.
+   scoped WordNet conclusion), plus the depth-matched effectiveness result.
 
 Commands (from the repo root):
 
@@ -167,7 +170,7 @@ uv run python experiments/rq1_lexical_agreement/run.py --config configs/rq1_dl20
 uv run python experiments/rq2_semantic_agreement/run.py --config configs/rq2_dl19_top10.yaml
 uv run python experiments/rq2_semantic_agreement/run.py --config configs/rq2_dl20_top10.yaml
 
-# effectiveness gate (verdicts reused from the rq1 top-10 runs; zero new model calls)
+# effectiveness reference (verdicts reused from the rq1 top-10 runs; zero new model calls)
 uv run python experiments/ranking_effectiveness/run.py --config configs/eff_dl19_top10.yaml
 uv run python experiments/ranking_effectiveness/run.py --config configs/eff_dl20_top10.yaml
 ```

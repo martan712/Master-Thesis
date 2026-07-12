@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Phase 1 agreement (fidelity) runbook (docs/phase1-implementation.md §6) as one script.
-# The companion effectiveness gate is scripts/run_phase1_effectiveness.sh.
+# The companion effectiveness reference is scripts/run_phase1_effectiveness.sh.
 #
 # Usage: scripts/run_phase1_agreement.sh [all|qwen|flan]
 #
@@ -62,5 +62,5 @@ if [[ "$mode" != qwen ]]; then
 fi
 
 step "phase 1 agreement runs done — results under results/rq1_lexical_agreement/ and results/rq2_semantic_agreement/"
-echo "next: run the effectiveness gate — scripts/run_phase1_effectiveness.sh (verdicts are"
+echo "next: run the effectiveness reference — scripts/run_phase1_effectiveness.sh (verdicts are"
 echo "      already in the store, so it is a zero-cost check that Qwen beats BM25 on nDCG@10)"

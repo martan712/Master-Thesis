@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 1 effectiveness gate runbook (docs/phase1-implementation.md §6) as one script.
+# Phase 1 effectiveness-reference runbook (docs/phase1-implementation.md §6) as one script.
 # The companion agreement (fidelity) runbook is scripts/run_phase1_agreement.sh.
 #
 # Copeland-aggregate each ranker's cached pairwise verdicts (= PRP-allpair) into a ranking
@@ -38,11 +38,11 @@ case "$mode" in
     flan) filter=(--only-model flan) ;;
 esac
 
-step "effectiveness gate: DL19 top-10 (verdicts shared with rq1, no new model calls)"
+step "effectiveness reference: DL19 top-10 (verdicts shared with rq1, no new model calls)"
 eff --config configs/eff_dl19_top10.yaml "${filter[@]}"
 
-step "effectiveness gate: DL20 top-10 (verdicts shared with rq1, no new model calls)"
+step "effectiveness reference: DL20 top-10 (verdicts shared with rq1, no new model calls)"
 eff --config configs/eff_dl20_top10.yaml "${filter[@]}"
 
-step "effectiveness gate done — metrics under results/ranking_effectiveness/*/metrics/"
-echo "next: record the nDCG@10 gate verdict in docs/phase1-design.md §9 (pass = residual is skill)"
+step "effectiveness reference done — metrics under results/ranking_effectiveness/*/metrics/"
+echo "next: record the depth-matched nDCG@10 comparison in docs/phase1-design.md §6.1"
