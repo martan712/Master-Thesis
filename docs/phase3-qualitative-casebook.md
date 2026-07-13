@@ -168,8 +168,23 @@ Further validity limits:
 
 ## 6. Phase 3 action
 
-Prioritise QARA and CBP for the next development increment, followed by TSC/QCS as explicit
-ablations. For each candidate:
+The complete preconditions, neutral cases, preference rules, cost levels and implementation order
+are specified in
+[`phase3-candidate-axiom-specs.md`](phase3-candidate-axiom-specs.md), with a machine-readable
+registry in [`resources/phase3-candidate-registry.yaml`](resources/phase3-candidate-registry.yaml).
+
+The first programmatic increment implemented the narrow D0 DEFANS, NUMANS, COMPARE and CBP
+operationalisations, corrected across two logged revisions (v1 count binding and person abstention;
+v2 local count binding and a real-list boilerplate fix). NUMANS survived as a coherent but very
+sparse development lead. COMPARE was directionally coherent but extremely sparse; CBP is target- and
+collection-inconsistent (it helps Qwen but hurts both FLAN targets, and its DL20 qrel/LLM agreement
+is at chance); Qwen DEFANS is unstable. Thus the casebook patterns can be expressed as preconditioned
+axioms, but the current implementations do not yet constitute a validated battery: NUMANS is retained
+and COMPARE deferred to D1 as sparse probes, while DEFANS and CBP are rejected in their current D0
+form. Exact results and the v0→v1→v2 ledger are in `phase3-candidate-axiom-specs.md` §7.
+
+Continue with harmful-reversal analysis and the D1 relation variants, followed by TSC/QCS as
+explicit ablations. For each candidate:
 
 1. write the mathematical definition, precondition, neutral case and fixed margin before running;
 2. add synthetic positive, negative and adversarial tests based on the distinctions above without

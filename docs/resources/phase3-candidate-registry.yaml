@@ -1,0 +1,145 @@
+schema_version: 1
+status: development_v2
+created_on: 2026-07-13
+source: docs/phase3-qualitative-casebook.md
+
+shared_precondition:
+  query_intent: exactly_one_supported_intent
+  min_anchor_coverage_each: 0.50
+  max_anchor_coverage_gap: 0.25
+  max_logged_revisions: 2
+  completed_revisions: 2
+
+cost_levels:
+  D0: regex_tokens_cues
+  D1: existing_spacy_pos_ner_dependencies
+  D2: new_pinned_frozen_encoder_or_nli
+  D3: diagnostic_llm_or_external_verification
+
+candidates:
+  - id: DEFANS
+    family: query_answer_relation_alignment
+    status: tested_development_d0v2
+    priority: 1
+    cost: D0
+    implementation_alias: DEFANS_d0v2
+    implementation_scope: regex_definition_relations_without_sense_resolution_or_d1_apposition
+    query_precondition: definition_or_acronym_expansion
+    evidence: subject_bound_to_definiens_by_copula_apposition_or_expansion
+    margin: 1
+    neutral_on: [ambiguous_sense, no_definition, equal_evidence]
+
+  - id: NUMANS
+    family: typed_specificity
+    status: tested_development_d0v2
+    priority: 1
+    cost: D0
+    implementation_alias: NUMANS_d0v2
+    implementation_scope: money_count_duration_age_with_local_count_unit_binding
+    query_precondition: exactly_one_of_money_count_duration_age
+    evidence: compatible_number_and_unit_in_anchor_sentence
+    margin: 1
+    neutral_on: [bare_number, incompatible_unit, indirect_temporal_calculation, equal_evidence]
+
+  - id: CBP
+    family: content_bearing_passage
+    status: tested_development_d0v2
+    priority: 1
+    cost: D0
+    implementation_alias: CBP_d0v2
+    implementation_scope: regex_boilerplate_true_numbered_lists_with_list_and_unqualified_person_abstention
+    query_precondition: comparable_topic_and_not_unqualified_list_request
+    evidence: declarative_content_minus_boilerplate_features
+    margin: 2
+    neutral_on: [both_prose, both_boilerplate, small_gap]
+
+  - id: COMPARE
+    family: query_answer_relation_alignment
+    status: tested_development_d0v2
+    priority: 1
+    cost: D0
+    implementation_alias: COMPARE_d0v2
+    implementation_scope: difference_between_form_with_lexical_contrast_windows
+    query_precondition: explicit_two_entity_comparison
+    evidence: both_entities_with_contrast_and_attributes
+    margin: 1
+    neutral_on: [one_sided_description, meta_heading, equal_evidence]
+
+  - id: PURPOSE
+    family: query_answer_relation_alignment
+    status: specified
+    priority: 2
+    cost: D0+D1
+    query_precondition: purpose_use_or_indication_query
+    evidence: subject_bound_to_purpose_or_condition
+    margin: 1
+    neutral_on: [incidental_mention, safety_only, equal_evidence]
+
+  - id: LOCREL
+    family: query_answer_relation_alignment
+    status: specified
+    priority: 2
+    cost: D1
+    query_precondition: supported_location_role
+    evidence: subject_bound_to_location_by_requested_predicate
+    margin: 1
+    neutral_on: [wrong_location_role, under_specified_entity, equal_evidence]
+
+  - id: CAUSE
+    family: causal_adequacy
+    status: specified
+    priority: 2
+    cost: D0+D1
+    query_precondition: why_or_explicit_cause_query
+    evidence: event_bound_to_distinct_causal_propositions
+    margin: 1
+    neutral_on: [chronology_only, denial_only, unbound_causal_cue, equal_evidence]
+
+  - id: AMBIG
+    family: abstention
+    status: specified
+    priority: 2
+    cost: D0
+    query_precondition: unqualified_entity_seeking_query
+    evidence: none
+    action: force_entity_selection_axioms_neutral
+
+  - id: COMPOSE
+    family: query_answer_relation_alignment
+    status: specified
+    priority: 3
+    cost: D0+D1_maybe_D2
+    query_precondition: supported_composition_or_precursor_relation
+    evidence: direction_preserving_subject_relation_object_propositions
+    margin: 1
+    neutral_on: [reversed_relation, incidental_object, unsupported_paraphrase, equal_evidence]
+
+  - id: QCS
+    family: query_constraint_satisfaction
+    status: specified
+    priority: 3
+    cost: D1_maybe_D2
+    query_precondition: at_least_one_extractable_qualifier
+    evidence: qualifiers_bound_to_subject_and_requested_relation_locally
+    margin: 1
+    neutral_on: [scattered_qualifiers, no_qualifier, under_specified_entity, equal_evidence]
+
+  - id: TSC
+    family: typed_specificity
+    status: specified
+    priority: 3
+    cost: D0+D1_maybe_D2
+    query_precondition: exactly_one_supported_answer_type
+    evidence: distinct_compatible_candidates_in_answer_sentences
+    margin: 1
+    neutral_on: [ambiguous_type, unsupported_type, boilerplate_candidates, equal_evidence]
+
+  - id: ALOC
+    family: answer_localisation
+    status: specified
+    priority: 3
+    cost: D0_after_typed_detectors
+    query_precondition: both_documents_have_equal_strength_typed_evidence
+    evidence: inverse_normalised_position_of_first_best_evidence
+    margin: 0.20
+    neutral_on: [missing_typed_evidence, unequal_evidence_strength, small_position_gap]

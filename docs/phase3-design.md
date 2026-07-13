@@ -66,6 +66,12 @@ corresponding axioms work:
 Typed Specificity and Completeness (TSC) is recorded as a refinement of the existing Specificity
 and Aspect Completeness family rather than a wholly separate construct.
 
+The versioned axiom-level preconditions, implemented D0 subset and development results are maintained in
+[`phase3-candidate-axiom-specs.md`](phase3-candidate-axiom-specs.md) and the machine-readable
+[`resources/phase3-candidate-registry.yaml`](resources/phase3-candidate-registry.yaml). QARA is an
+umbrella family; its definition, purpose, location, composition, comparison and causal members are
+evaluated separately rather than collapsed into one opaque semantic score.
+
 ### 3.3 Candidate menu
 
 | family | candidate | tier | operationalisation |
@@ -118,12 +124,14 @@ replication, confirmation supports cross-dataset but not cross-model generalisat
 
 ## 5. Fitted reranking protocol
 
-### 5.1 Nested query-disjoint fitting
+### 5.1 Query-disjoint fitting
 
-For each target LLM, fit classical and extended L2 pairwise models. Inner query-grouped folds
-select regularisation using pairwise log loss; outer query-grouped folds estimate pair predictions
-and rankings. Every top-10 pair is scored, then aggregated by the same Copeland rule. The target
-LLM's tie locations are not used to choose which pairs the axiom model scores.
+For each target LLM, fit classical and extended L2 pairwise models. The current development
+experiments prespecify `C=1.0` and use common query-grouped folds for OOF pair predictions and
+rankings. If regularisation is later tuned, that choice must occur in inner query-grouped folds;
+otherwise the fixed value is frozen. Every top-10 pair is scored, then aggregated by the same
+Copeland rule. The target LLM's tie locations are not used to choose which pairs the axiom model
+scores.
 
 ### 5.2 Depth-matched comparisons
 
@@ -220,7 +228,30 @@ confirmation and not an effectiveness result.
 No add-one or nested new-axiom effectiveness interval excludes zero. VERB/QCOV therefore have no
 confirmed internal effectiveness gain in the coherent fitted evaluation.
 
-## 10. Required outputs
+## 10. Completed internal evidence — Increment 2
+
+The first casebook-derived D0 implementation comprises versioned DEFANS, NUMANS, COMPARE and CBP
+features. D0-v0 exposed a count-unit binding error and unsafe application to an unqualified person
+query, corrected as D0-v1; independent review then found two further result-changing flaws in v1 —
+CBP scoring prose numbers as list boilerplate, and NUMANS binding counts only at sentence
+granularity — corrected as D0-v2, the second and final logged revision. Synthetic and adversarial
+tests cover direction reversal, failed preconditions, local count binding and prose-number versus
+true-list boilerplate.
+
+On pooled DL19/DL20 the corrected all-D0 model shows no clear OOF fidelity improvement over
+classical: accuracy-lift intervals include zero for every target and only a marginal FLAN-large
+log-loss interval excludes it. NUMANS keeps positive fold coefficients across all targets and
+COMPARE is directionally consistent, but both are far too sparse to freeze; Qwen DEFANS is
+directionally unstable and CBP is target- and collection-inconsistent. At ranking level the small
+positive DL20 deltas are no longer individually significant and the only significant change is a
+negative FLAN-XL DL19 delta, so collection/target heterogeneity — not a universal gain — is the
+finding. Exact coverage, intervals, coefficients and the feature-zero diagnostic are in
+`phase3-candidate-axiom-specs.md` §7.
+
+These numbers remain development-only because the candidates came from DL19/DL20. They do not
+authorize access to the locked confirmation set and do not yet define the frozen battery.
+
+## 11. Required outputs
 
 - candidate registry and complete revision ledger;
 - synthetic and determinism tests;
