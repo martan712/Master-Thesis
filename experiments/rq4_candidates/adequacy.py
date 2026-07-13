@@ -178,7 +178,10 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=None, help="score at most N new documents")
     parser.add_argument(
         "--depth", type=int, default=None,
-        help="widen scope to each query's top-N BM25 pool (default: top-10 all-pairs set)",
+        help=(
+            "widen scope to each query's top-N BM25 pool (default: top-10 all-pairs set; "
+            "use --depth 100 for the top-100 experiment)"
+        ),
     )
     parser.add_argument("--flush-every", type=int, default=25)
     args = parser.parse_args()

@@ -7,15 +7,14 @@ downstream question directly: if we simply sort each query's top-10 by ``a(q, d)
 resulting run against the collection qrels, does it beat BM25 on nDCG@10 — and how close does it
 get to the full PRP-allpair tournament (Copeland over every cached pairwise verdict)?
 
-The comparison is depth-matched by construction. The adequacy oracle only scored the documents that
-appear in the top-10 all-pairs set (``adequacy.py._pool_documents``), which is exactly the block that
-``copeland_ranking`` reranks. So all three runs share the same top-10 block over the same BM25 pool
-and differ only in how that block is ordered:
+The comparison is depth-matched by construction. The adequacy cache can score any requested BM25
+top-N block (``adequacy.py._pool_documents``); the adequacy and BM25 runs therefore share that block
+and differ only in how it is ordered. PRP-allpair remains a depth-10 reference because extending its
+tournament requires fresh pairwise verdicts:
 
 - **BM25** — the first-stage order (the gated baseline, phase1-design.md §4).
 - **adequacy** — the block sorted by ``a(q, d)`` descending, first-stage rank breaking ties, the tail
-  (documents with no adequacy score) held in first-stage order strictly below (same block structure as
-  Copeland, so nDCG@10 reflects only the reordering of the top-10).
+  (documents with no adequacy score) held in first-stage order strictly below.
 - **PRP-allpair** — Copeland over the cached Qwen pairwise verdicts, the reranking ceiling this cheap
   per-document scalar is trying to approximate at ~4-5x fewer LLM calls per query.
 
@@ -76,13 +75,30 @@ def adequacy_rerank(
     return pd.DataFrame(rows, columns=["qid", "docno", "rank", "score"])
 
 
+def _assert_coverage(pool: pd.DataFrame, adequacy: dict, collection: str, depth: int) -> None:
+    """Fail rather than silently evaluate a partially scored depth."""
+    scoped = pool[pool["rank"] < depth]
+    missing = [
+        (str(row.qid), str(row.docno))
+        for row in scoped.itertuples()
+        if (collection, str(row.qid), str(row.docno)) not in adequacy
+    ]
+    if missing:
+        preview = ", ".join(f"{qid}/{docno}" for qid, docno in missing[:3])
+        raise SystemExit(
+            f"adequacy cache is incomplete for {collection} depth {depth}: "
+            f"{len(missing)} documents missing (e.g. {preview}); "
+            f"run adequacy.py --depth {depth} first"
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True, help="config listing DL19/DL20 sources")
     parser.add_argument("--refresh", action="store_true", help="recompute cached pool/pairs")
     parser.add_argument(
-        "--depths", default="10,20,50",
-        help="comma-separated rerank depths to sweep (default 10,20,50)",
+        "--depths", default="10,20,50,100",
+        help="comma-separated rerank depths to sweep (default 10,20,50,100)",
     )
     args = parser.parse_args()
     depths = [int(x) for x in args.depths.split(",")]
@@ -114,6 +130,7 @@ def main() -> None:
 
         by_depth = {}
         for depth in depths:
+            _assert_coverage(pool, adequacy, collection, depth)
             adeq_run = adequacy_rerank(pool, adequacy, collection, depth)
             adeq = ranking.evaluate_run(adeq_run, source_cfg.dataset.irds_id, metrics)
             _, vs_bm25 = ranking.compare_runs(baseline, adeq, metrics, seed=cfg.seed)

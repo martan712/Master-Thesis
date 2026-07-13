@@ -211,22 +211,21 @@ new pairwise tournament per depth), so it is only the depth-10 reference here.
 | DL20 | PRP-allpair@10 | 0.5555 | +0.062 | — |
 | DL20 | adequacy@10 | 0.5500 | +0.056 [+0.033, +0.080] | 94% |
 | DL20 | adequacy@20 | 0.6188 | +0.125 [+0.083, +0.167] | 87% |
-| DL20 | adequacy@50 | **0.6705** | +0.177 [+0.116, +0.238] | 81% |
+| DL20 | adequacy@50 | 0.6705 | +0.177 [+0.116, +0.238] | 81% |
+| DL19 | adequacy@100 | **0.6840** | +0.205 [+0.141, +0.268] | — |
+| DL20 | adequacy@100 | **0.6787** | +0.185 [+0.117, +0.257] | — |
 
 \*Oracle ceiling = the top-N reranked perfectly by the true qrel grade (depth-10 0.575/0.583,
 depth-20 0.719/0.716, depth-50 0.824/0.831 for DL19/DL20). AP moves the same way (DL19 0.291 →
 0.342, DL20 0.314 → 0.379 at depth-50; both CIs clear of zero).
 
-**Reading.** Every step up in depth is a large, CI-clear gain — depth-50 adequacy reaches ≈0.67
-nDCG@10 on both collections, +0.18-0.19 over BM25 and well past the depth-10 pairwise tournament.
-The predicted coarse-scale saturation is visible but does **not** erase the gain: the fraction of the
-oracle ceiling captured falls 94% → 88% → 82% as the 0-3 scale must order more documents and top-band
-ties multiply, yet the absolute score keeps climbing. Most of the lift is 10→20 (+0.09/+0.07); 20→50
-still adds a smaller but real increment (+0.043/+0.052). The 10→20→50 headroom is the answer-shape
-signal rescuing relevant passages BM25 mis-ranked on lexical grounds, which is exactly the property
-the oracle rates. A finer rating scale, or the smooth `a(q,d)` broken by a lexical/first-stage
-tiebreak within a top adequacy band, is the obvious lever for closing more of the remaining ceiling
-gap at depth.
+**Reading.** Every step up in depth is a CI-clear gain. At depth 100, adequacy reaches 0.684/0.679
+nDCG@10, +0.205/+0.185 over BM25, well past the depth-10 pairwise tournament. Gains attenuate as the
+block grows (DL19 +0.043 from 20→50 and +0.012 from 50→100; DL20 +0.052 and +0.008), consistent with
+the coarse 0–3 scale accumulating top-band ties, but the absolute result and AP continue to rise
+(0.361/0.396 at depth 100). The 10→100 headroom is the answer-adequacy signal rescuing passages BM25
+mis-ranked lexically. A finer rating scale, or a smooth `a(q,d)` with a lexical/first-stage tiebreak
+inside an adequacy band, remains the obvious route to more resolution.
 
 ## 6. Reproduction
 
@@ -239,11 +238,11 @@ uv run --no-sync python experiments/rq4_candidates/adequacy.py \
 uv run --no-sync python experiments/rq4_candidates/adequacy_eval.py \
   --config configs/rq4_candidates_d0.yaml
 
-# score a deeper pool (top-50) for the depth sweep (§5.1; ~3.8k resumable Qwen calls)
+# score the complete top-100 development pool for the depth sweep (§5.1; resumable Qwen calls)
 uv run --no-sync python experiments/rq4_candidates/adequacy.py \
-  --config configs/rq4_candidates_d0.yaml --depth 50
+  --config configs/rq4_adequacy_top100.yaml --depth 100
 
-# rerank by the adequacy scalar; nDCG@10/AP vs BM25, sweeping depth (§5, §5.1)
+# rerank by the adequacy scalar; fails closed if the requested score block is incomplete
 uv run --no-sync python experiments/rq4_candidates/adequacy_rerank.py \
-  --config configs/rq4_candidates_d0.yaml --depths 10,20,50
+  --config configs/rq4_adequacy_top100.yaml --depths 10,20,50,100
 ```

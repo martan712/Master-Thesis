@@ -1,0 +1,11 @@
+# Phase 3 side investigation: score each BM25 query's top-100 documents with the Qwen
+# answer-adequacy oracle. The source configs provide the fixed DL19/DL20 top-100 pools.
+# Scoring is resumable and remains development-only; NFCorpus is not included.
+experiment: rq4_adequacy
+variant: qwen_top100
+seed: 42
+primary_metric: effectiveness
+
+sources:
+  - configs/rq2_dl19_top10.yaml
+  - configs/rq2_dl20_top10.yaml
