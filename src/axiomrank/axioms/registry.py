@@ -21,14 +21,15 @@ def coerce_spec(spec: AxiomSpec | str) -> AxiomSpec:
 
 
 def _factory(name: str):
-    """Resolve an axiom factory: our rq4/relaxed variants first, then ir_axioms."""
-    from axiomrank.axioms import relaxed, rq4
+    """Resolve an axiom factory: our answering/rq4/relaxed variants, then ir_axioms."""
+    from axiomrank.axioms import answering, relaxed, rq4
 
     import ir_axioms.axiom as ax
 
     normalised = _normalise(name)
     factory = (
-        getattr(rq4, normalised, None)
+        getattr(answering, normalised, None)
+        or getattr(rq4, normalised, None)
         or getattr(relaxed, normalised, None)
         or getattr(ax, normalised, None)
     )

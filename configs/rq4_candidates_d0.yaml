@@ -1,0 +1,18 @@
+# Exploratory Phase 3 development evaluation of the first deterministic candidate
+# axioms. This reads the cached DL19/DL20 pools and LLM preferences and makes zero
+# ranker calls. These collections remain development data; NFCorpus is untouched.
+experiment: rq4_candidates
+variant: d0v2
+seed: 42
+primary_metric: fidelity
+
+sources:
+  - configs/rq2_dl19_top10.yaml
+  - configs/rq2_dl20_top10.yaml
+
+axioms:
+  lexical:
+    - {name: DEFANS, alias: DEFANS_d0v2}
+    - {name: NUMANS, alias: NUMANS_d0v2}
+    - {name: COMPARE, alias: COMPARE_d0v2}
+    - {name: CBP, alias: CBP_d0v2}

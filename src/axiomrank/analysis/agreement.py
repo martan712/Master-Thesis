@@ -86,11 +86,17 @@ def agreement_with_ci(
     axiom_names: list[str],
     n_bootstrap: int = N_BOOTSTRAP,
     seed: int = 42,
+    min_ci_clusters: int = 1,
 ) -> pd.DataFrame:
     """Per-axiom coverage and agreement with 95% query-bootstrap CIs.
 
     Point estimates match `agreement_table` (pair-pooled); the CI resamples
     queries with replacement, the natural sampling unit of a TREC collection.
+
+    `n_evaluable_queries` is the number of distinct queries where the axiom is decisive.
+    A query bootstrap over fewer than `min_ci_clusters` such queries cannot express honest
+    95% uncertainty (e.g. a single evaluable query yields a degenerate ``[x, x]``), so the
+    interval is suppressed to NA there. The default of 1 preserves prior callers' behaviour.
     """
     rng = np.random.default_rng(seed)
     decisive = merged["model_pref"] != 0
@@ -118,6 +124,7 @@ def agreement_with_ci(
                 "n_pairs": n_pairs,
                 "coverage": float(active.mean()) if n_pairs else float("nan"),
                 "n_evaluable": n_eval,
+                "n_evaluable_queries": int((counts["n_eval"] > 0).sum()),
                 "agreement": float(agree_mask.sum() / n_eval) if n_eval else float("nan"),
             }
         )
@@ -126,7 +133,11 @@ def agreement_with_ci(
     qids = merged["query_id"].unique()
     draws = rng.choice(len(qids), size=(n_bootstrap, len(qids)), replace=True)
     ci_lo, ci_hi = [], []
-    for name in axiom_names:
+    for name, n_clusters in zip(axiom_names, table["n_evaluable_queries"]):
+        if n_clusters < min_ci_clusters:
+            ci_lo.append(float("nan"))
+            ci_hi.append(float("nan"))
+            continue
         counts = per_query[name].reindex(qids).fillna(0).to_numpy()
         n_eval = counts[draws, 0].sum(axis=1)
         n_agree = counts[draws, 1].sum(axis=1)

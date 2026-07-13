@@ -1,7 +1,7 @@
-# Phase 3 Implementation — RQ4 Increment 1 Retrospective Engineering Record
+# Phase 3 Implementation — RQ4 Engineering Record
 
-> This document records the implemented VERB/QCOV development increment, append-only axiom-cache
-> handling, coherent fitted pairwise runner and runbook. VERB/QCOV are retrospective candidates
+> This document records the implemented VERB/QCOV and casebook-derived D0 development increments,
+> cache handling, coherent fitted pairwise runners and runbooks. All are retrospective candidates
 > because their definitions followed inspection of DL19/DL20 diagnostics. Current scientific
 > interpretation and the broader candidate protocol are in `phase3-design.md`; chronology is in
 > `research-logbook.md`.
@@ -144,11 +144,10 @@ candidate ablations; and residual profiles. It runs cache-only and makes zero mo
 
 The remaining work for the full `phase3-design.md` protocol is:
 
-1. nested inner-C selection rather than a fixed regularisation value;
-2. implementation and complete ledgering of the broader candidate families and bounded revisions;
+1. either freeze the current `C=1.0` regularisation or add genuinely nested inner-C selection;
+2. implement and ledger the remaining candidate families within the bounded revision budget;
 3. family-level leave-one-out ablations for the frozen extended battery;
-4. a frozen development manifest and external collection choice before any confirmation result
-   (`beir/nfcorpus/test` is the current proposal, not yet locked);
+4. a frozen development manifest before the already locked `beir/nfcorpus/test` is opened;
 5. separate held-out fidelity and effectiveness claims with multiplicity-adjusted secondary tests.
 
 RQ5 begins only after a separate implementation proves which retained features decompose into
@@ -165,3 +164,40 @@ The manual synthesis is tracked in `phase3-qualitative-casebook.md`, with machin
 in `resources/phase3-qualitative-case-annotations.csv`. The first run found 583 contributory
 reversals; thirteen primary cases and two cautionary cases motivated QARA, CBP, QCS and a typed
 specificity refinement. These remain retrospective development hypotheses.
+
+## 12. Casebook-derived D0-v2 pipeline
+
+`src/axiomrank/axioms/answering.py` implements the versioned D0 subset of DEFANS, NUMANS, COMPARE
+and CBP with explicit query and pair preconditions. `experiments/rq4_candidates/run.py` computes
+candidate preferences fresh from cached DL19/DL20 pool/pair text, joins cached LLM labels with
+`allow_new=False`, and fits classical, four add-one and all-D0 arms on a shared query-disjoint fold
+map. It does not append to or invalidate the Phase 1/2 axiom caches. Qrels are read only after all
+OOF pair predictions exist. The runner also writes `provenance.json` (variant alias, `answering.py`
+source digest, git revision) so a code change under an unchanged version alias is detectable.
+
+D0-v0 revealed that count evidence was not bound to the requested noun and that CBP could act on
+bare ambiguous person queries; D0-v1 corrected both. An independent review then found two
+result-changing flaws still in D0-v1: CBP counted ordinary prose numbers as numbered-list
+boilerplate (list punctuation was optional), and NUMANS bound counts only at sentence granularity.
+D0-v2 requires genuine list punctuation, binds counts within a local number–noun token window with
+deterministic singular/plural matching, suppresses degenerate bootstrap intervals below five
+evaluable-query clusters, and uses an exact bidirectional candidate merge; it also adds a
+frozen-coefficient feature-zero diagnostic. The `d0v0/` and `d0v1/` result directories are retained;
+current outputs are under `d0v2/`. Twenty-one focused tests cover direction reversal, neutrality,
+explicit list abstention, person ambiguity, local count binding, prose-number vs true-list
+boilerplate, exact candidate merge, registry metadata and evaluator nesting.
+
+Runbook:
+
+```bash
+uv run --no-sync pytest -q tests/test_answering_axioms.py tests/test_candidate_registry.py tests/test_rq4_candidates.py
+uv run --no-sync python experiments/rq4_candidates/run.py --config configs/rq4_candidates_d0.yaml
+```
+
+The corrected D0-v2 rerun (`0 newly collected` for every ranker) weakened the earlier signal.
+All-D0 nDCG@10 deltas against classical are Qwen −0.0057/+0.0024, FLAN-large +0.0002/+0.0044 and
+FLAN-XL −0.0058/+0.0031 on DL19/DL20; only the negative FLAN-XL DL19 delta is individually
+significant. Fidelity lifts all contain zero except a marginal FLAN-large log-loss, and all-D0
+remains far below the LLM reranker. These are development diagnostics, not confirmation; the
+candidate-by-candidate disposition (retain NUMANS, defer COMPARE, reject DEFANS and CBP in their
+current D0 form, do not freeze the union) is recorded in `phase3-candidate-axiom-specs.md` §7.
