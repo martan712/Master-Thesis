@@ -1,0 +1,26 @@
+# Exploratory external transfer only.  SciFact was already used for smoke testing and
+# is not the locked NFCorpus confirmation set.  The distiller is fitted on DL19/DL20
+# only and applied without target fitting.
+experiment: rq4_soft_semantics_transfer
+variant: scifact_top10
+seed: 42
+primary_metric: effectiveness
+
+dataset:
+  irds_id: beir/scifact/test
+  hf_artifact: pyterrier/scifact.terrier
+
+first_stage:
+  retriever: bm25
+  pool_depth: 10
+
+pairs:
+  strategy: top_k_all_pairs
+  k: 10
+
+rankers:
+  - backend: mock
+
+axioms:
+  lexical: []
+  semantic: []

@@ -1,0 +1,11 @@
+# Phase 3 / RQ4: local pointwise soft-semantic reranking of BM25's top 100.
+# This is deliberately separate from the Qwen adequacy diagnostic: the runner makes
+# no API or generative-LLM calls and scores each document with the three local gates.
+experiment: rq4_soft_semantics
+variant: top100
+seed: 42
+primary_metric: effectiveness
+
+sources:
+  - configs/rq2_dl19_top10.yaml
+  - configs/rq2_dl20_top10.yaml

@@ -358,3 +358,37 @@ rating scale or a lexical/first-stage tiebreak within a top adequacy band. This 
 and a development-side effectiveness result, not a deployable cheap axiom (the oracle is an LLM, and
 Qwen scoring Qwen is partly circular); it defines the ceiling and the training target for a distilled
 detector. All numbers are development-only; the NFCorpus confirmation lock remains unopened.
+
+## 15. Continuous soft-semantics distillation
+
+The first local approximation implemented the proposed relevance, NLI and constraint gates as a
+hard 0–3 decision matrix. It failed at depth 100: nDCG@10 was 0.480 → 0.478 on DL19 and 0.494 →
+0.483 on DL20, with both paired intervals including zero. The failure was structural rather than a
+small threshold miss. The output collapsed to score bands 0/1/3 (no score-2 documents): 2,018/2,113/
+74 documents on DL19 and 2,637/2,622/70 on DL20. Most ties therefore reverted to BM25. The NLI
+gate was especially invalid as a binary answer detector: 97.3% of documents with cached Qwen
+adequacy at least 2.5 fell below its 0.65 entailment threshold. The public
+`cross-encoder/nli-deberta-v3-xsmall` checkpoint replaced the unavailable originally proposed
+MoritzLaurer identifier.
+
+The repaired D2 experiment retains local scores as continuous features, adds a SQuAD2
+null-adjusted extractive-QA span margin, and fits a fixed ridge regressor to cached Qwen expected
+adequacy. It is evaluated query-grouped out of fold: each held-out query receives a score from a
+model trained only on other DL19/DL20 queries, and qrels enter only after those scores are frozen.
+On 7,334 labelled documents, semantic+MRC features improve adequacy fidelity over BM25/length/
+coverage controls from Spearman 0.377 to 0.665, MAE 0.847 to 0.653 and R² 0.116 to 0.413. The MRC
+margin also orders Qwen's argmax bands monotonically (means −4.88, −2.97, −0.22 and +2.28 for
+labels 0–3).
+
+Effectiveness follows: DL19 nDCG@10 rises 0.480 → 0.624, Δ +0.145 [+0.087, +0.204], and DL20
+0.494 → 0.565, Δ +0.071 [−0.001, +0.145]. AP rises by +0.065 and +0.052 respectively. This is a
+successful development-side distillation result, not evidence of independent generalisation: Qwen
+adequacy is the target and DL19/DL20 informed every design decision.
+
+The zero-shot full-development fit does not transfer to SciFact: top-10 nDCG@10 changes 0.684 →
+0.655, Δ −0.029 [−0.054, −0.004]. SciFact is exploratory only because it was previously used for
+smoke testing. A bounded adaptation check then selected 30 SciFact queries deterministically before
+reading held-out qrels, collected Qwen adequacy for their 300 top-10 documents, fit only those labels,
+and evaluated the other 270 queries. It improves nDCG@10 0.677 → 0.695, Δ +0.018 [+0.004, +0.032],
+and AP 0.625 → 0.650, Δ +0.025 [+0.006, +0.044]. This establishes domain adaptation as a viable
+exploratory path, not a confirmation result. NFCorpus remains locked and untouched.

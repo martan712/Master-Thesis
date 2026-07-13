@@ -12,6 +12,15 @@ from axiomrank.ranking.surrogate import (
     fit_oof_surrogate,
     surrogate_fidelity,
 )
+from axiomrank.ranking.soft_semantics import (
+    AxiomEvaluation,
+    AxiomThresholds,
+    SoftSemanticAxiomaticReranker,
+    clean_passage,
+    derive_pointwise_score,
+    prepare_query,
+    rerank_scored_pool,
+)
 
 __all__ = [
     "DEFAULT_METRICS",
@@ -22,4 +31,11 @@ __all__ = [
     "fit_oof_surrogate",
     "metric_names",
     "surrogate_fidelity",
+    "AxiomEvaluation",
+    "AxiomThresholds",
+    "SoftSemanticAxiomaticReranker",
+    "clean_passage",
+    "derive_pointwise_score",
+    "prepare_query",
+    "rerank_scored_pool",
 ]
