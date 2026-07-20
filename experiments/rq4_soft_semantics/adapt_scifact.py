@@ -25,6 +25,7 @@ from tqdm import tqdm
 from axiomrank import paths, ranking
 from axiomrank.config import load_config
 from axiomrank.pipeline import stages
+from axiomrank.provenance import write_run_manifest
 
 
 FEATURES = [
@@ -181,6 +182,28 @@ def main() -> None:
         "metrics": comparison,
     }
     (out_dir / "report.json").write_text(json.dumps(report, indent=2) + "\n")
+    write_run_manifest(
+        out_dir / "run_manifest.json",
+        target_cfg,
+        config_source=args.target_config,
+        source_paths=[Path(__file__), paths.PROJECT_ROOT / "src" / "axiomrank"],
+        input_paths=[
+            paths.PROJECT_ROOT / args.label_source_config,
+            stages.processed_dir(target_cfg),
+            feature_path,
+            label_path,
+        ],
+        output_paths=[out_dir, label_path],
+        extra={
+            "runner": "experiments/rq4_soft_semantics/adapt_scifact.py",
+            "research_status_override": "exploratory_adaptation",
+            "train_queries": args.train_queries,
+            "seed": args.seed,
+            "label_source_config": args.label_source_config,
+            "label_model": ranker.model,
+            "refresh_labels": args.refresh_labels,
+        },
+    )
     ndcg = comparison["nDCG@10"]
     print(f"SciFact adaptation: nDCG@10 {ndcg['mean_baseline']:.4f} -> {ndcg['mean_reranked']:.4f} ({ndcg['mean_delta']:+.4f})")
 

@@ -27,6 +27,8 @@ import pandas as pd
 from axiomrank import paths
 from axiomrank.config import load_config
 from axiomrank.pipeline.frames import merged_cell_frame
+from axiomrank.pipeline import stages
+from axiomrank.provenance import write_run_manifest
 
 ADEQUACY_MODEL = "models/qwen3.6-35B-A3B-AWQ"
 DEADBAND = 0.10  # |delta| below this is treated as no adequacy discrimination (a tie)
@@ -98,6 +100,24 @@ def main() -> None:
     ]
     out = paths.results_dir("rq4_candidates") / "d0v2" / "adequacy_eval.csv"
     table.to_csv(out, index=False)
+    write_run_manifest(
+        out.with_name("adequacy_eval.run_manifest.json"),
+        cfg,
+        config_source=args.config,
+        source_paths=[__file__, paths.PROJECT_ROOT / "src" / "axiomrank"],
+        input_paths=[paths.PROJECT_ROOT / source for source in cfg.sources]
+        + [stages.processed_dir(source_cfg) for source_cfg in source_cfgs]
+        + [
+            paths.PREFERENCES_DIR,
+            paths.DATA_DIR / "adequacy" / ADEQUACY_MODEL.replace("/", "__"),
+        ],
+        output_paths=[out],
+        extra={
+            "runner": "experiments/rq4_candidates/adequacy_eval.py",
+            "adequacy_model": ADEQUACY_MODEL,
+            "deadband": DEADBAND,
+        },
+    )
     with pd.option_context("display.width", 200, "display.max_columns", 20):
         print(table.to_string(index=False))
     print(f"\n[adequacy-eval] oracle={ADEQUACY_MODEL} deadband={DEADBAND} -> {out}")

@@ -33,6 +33,7 @@ import pandas as pd
 
 from axiomrank import paths, pipeline, ranking
 from axiomrank.config import load_config
+from axiomrank.provenance import write_run_manifest
 
 ADEQUACY_MODEL = "models/qwen3.6-35B-A3B-AWQ"
 
@@ -150,6 +151,25 @@ def main() -> None:
     out = out_dir / "adequacy_rerank.json"
     with open(out, "w") as f:
         json.dump(reports, f, indent=2)
+    write_run_manifest(
+        out.with_name("adequacy_rerank.run_manifest.json"),
+        cfg,
+        config_source=args.config,
+        source_paths=[__file__, paths.PROJECT_ROOT / "src" / "axiomrank"],
+        input_paths=[paths.PROJECT_ROOT / source for source in cfg.sources]
+        + [pipeline.processed_dir(source_cfg) for source_cfg in source_cfgs]
+        + [
+            paths.PREFERENCES_DIR,
+            paths.DATA_DIR / "adequacy" / ADEQUACY_MODEL.replace("/", "__"),
+        ],
+        output_paths=[out],
+        extra={
+            "runner": "experiments/rq4_candidates/adequacy_rerank.py",
+            "adequacy_model": ADEQUACY_MODEL,
+            "depths": depths,
+            "refresh": args.refresh,
+        },
+    )
 
     for rep in reports:
         print(f"\n=== {rep['collection']}  ({rep['n_queries']} queries) ===")

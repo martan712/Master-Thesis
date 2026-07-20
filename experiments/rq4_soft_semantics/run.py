@@ -20,6 +20,7 @@ from tqdm import tqdm
 from axiomrank import paths, ranking
 from axiomrank.config import dump_config, load_config
 from axiomrank.pipeline import stages
+from axiomrank.provenance import write_run_manifest
 from axiomrank.ranking.soft_semantics import AxiomThresholds, SoftSemanticAxiomaticReranker
 
 
@@ -117,18 +118,24 @@ def main() -> None:
     out_dir = paths.results_dir("rq4_soft_semantics") / f"top{args.depth}"
     out_dir.mkdir(parents=True, exist_ok=True)
     dump_config(cfg, out_dir / "config.yaml")
+    thresholds = AxiomThresholds()
     reranker = SoftSemanticAxiomaticReranker.from_huggingface(
-        device=args.device, thresholds=AxiomThresholds()
+        device=args.device, thresholds=thresholds
     )
 
     reports = []
+    source_cfgs = []
+    score_caches = []
     for source in cfg.sources:
         source_cfg = load_config(paths.PROJECT_ROOT / source)
+        source_cfgs.append(source_cfg)
         collection = source_cfg.variant or source_cfg.dataset.irds_id.replace("/", "_")
         pool = stages.build_pool(source_cfg, refresh=False)
+        cache_path = _cache_path(collection, args.depth)
+        score_caches.append(cache_path)
         started = perf_counter()
         scores = score_pool(
-            pool, reranker, _cache_path(collection, args.depth), depth=args.depth,
+            pool, reranker, cache_path, depth=args.depth,
             refresh=args.refresh_scores, flush_every=args.flush_every,
         )
         score_map = {
@@ -155,6 +162,25 @@ def main() -> None:
 
     output = out_dir / "pointwise_effectiveness.json"
     output.write_text(json.dumps(reports, indent=2) + "\n")
+    write_run_manifest(
+        out_dir / "run_manifest.json",
+        cfg,
+        config_source=args.config,
+        source_paths=[Path(__file__), paths.PROJECT_ROOT / "src" / "axiomrank"],
+        input_paths=[paths.PROJECT_ROOT / source for source in cfg.sources]
+        + [stages.processed_dir(source_cfg) for source_cfg in source_cfgs]
+        + score_caches,
+        output_paths=[out_dir],
+        extra={
+            "runner": "experiments/rq4_soft_semantics/run.py",
+            "depth": args.depth,
+            "device": args.device,
+            "threads": args.threads,
+            "thresholds": vars(thresholds),
+            "refresh_scores": args.refresh_scores,
+            "cache_policy": "development-config-guard-with-explicit-refresh",
+        },
+    )
     for report in reports:
         ndcg = report["metrics"]["nDCG@10"]
         print(

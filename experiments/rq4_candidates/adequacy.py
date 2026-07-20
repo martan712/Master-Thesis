@@ -35,6 +35,7 @@ import pandas as pd
 from axiomrank import paths
 from axiomrank.config import load_config
 from axiomrank.pipeline import stages
+from axiomrank.provenance import write_run_manifest
 
 PROMPT_VERSION = "adeq_v1"
 LABELS = ("0", "1", "2", "3")
@@ -228,6 +229,24 @@ def main() -> None:
             print(f"[adequacy] {scored}/{len(todo)} scored (flushed)")
             buffer = []
     _append(root, buffer)
+    write_run_manifest(
+        root / "run_manifest.json",
+        cfg,
+        config_source=args.config,
+        source_paths=[__file__, paths.PROJECT_ROOT / "src" / "axiomrank"],
+        input_paths=[paths.PROJECT_ROOT / source for source in cfg.sources]
+        + [stages.processed_dir(source_cfg) for source_cfg in source_cfgs],
+        output_paths=[root],
+        extra={
+            "runner": "experiments/rq4_candidates/adequacy.py",
+            "model": model,
+            "prompt_version": PROMPT_VERSION,
+            "depth": args.depth,
+            "limit": args.limit,
+            "flush_every": args.flush_every,
+            "newly_scored": scored,
+        },
+    )
     print(f"[adequacy] done: {scored} newly scored -> {root}")
 
 

@@ -19,6 +19,8 @@ import pandas as pd
 
 from axiomrank import paths
 from axiomrank.confirmation import assert_dataset_access_allowed
+from axiomrank.config import load_config
+from axiomrank.provenance import write_run_manifest
 
 
 COLLECTIONS = {
@@ -323,6 +325,25 @@ def main() -> None:
         annotated.drop(columns="_merge").to_parquet(
             output / "annotated_cases.parquet", index=False
         )
+    result_config = args.results_root / "config.yaml"
+    cfg = load_config(result_config)
+    write_run_manifest(
+        output / "run_manifest.json",
+        cfg,
+        config_source=result_config,
+        source_paths=[__file__, paths.PROJECT_ROOT / "src" / "axiomrank"],
+        input_paths=[
+            args.results_root / "metrics",
+            args.results_root / "reranking.json",
+            annotation_path,
+        ],
+        output_paths=[output],
+        extra={
+            "runner": "experiments/rq4_qualitative/run.py",
+            "research_status_override": "exploratory_qualitative_development",
+            "per_collection": args.per_collection,
+        },
+    )
     print(f"{len(candidates)} candidate reversals -> {output}")
 
 

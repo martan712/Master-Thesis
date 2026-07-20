@@ -10,9 +10,8 @@ external confirmation collection.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
-import subprocess
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -22,6 +21,7 @@ from axiomrank.axioms import axiom_preferences
 from axiomrank.axioms.answering import candidate_query_precondition
 from axiomrank.config import dump_config, load_config
 from axiomrank.pipeline import merged_cell_frame, stages
+from axiomrank.provenance import write_run_manifest
 
 DEGENERATE = {"TFC1@len0.2", "TFC1@len0.5", "TFC3", "TFC3@len0.2", "TFC3@len0.5"}
 NON_CLASSICAL = {"VERB", "QCOV", "VERB@m0.2"}
@@ -371,35 +371,6 @@ def _run_model(source_cfgs, ranker_cfg, candidate_frames, candidate_names, out, 
         )
 
 
-def _write_provenance(cfg, candidates, out) -> None:
-    """Record the axiom source digest and git revision alongside the version alias.
-
-    A version alias (`d0v2`) names a fixed implementation; pinning the digest of
-    ``answering.py`` and the git revision makes a silent code change under the same alias
-    detectable in the result manifest.
-    """
-    source = (paths.PROJECT_ROOT / "src" / "axiomrank" / "axioms" / "answering.py").read_bytes()
-    provenance = {
-        "variant": cfg.variant,
-        "candidates": candidates,
-        "answering_sha256": hashlib.sha256(source).hexdigest(),
-    }
-    try:
-        provenance["git_rev"] = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=paths.PROJECT_ROOT, text=True
-        ).strip()
-        provenance["git_dirty"] = bool(
-            subprocess.check_output(
-                ["git", "status", "--porcelain"], cwd=paths.PROJECT_ROOT, text=True
-            ).strip()
-        )
-    except (subprocess.CalledProcessError, OSError):
-        provenance["git_rev"] = None
-        provenance["git_dirty"] = None
-    with open(out / "provenance.json", "w") as handle:
-        json.dump(provenance, handle, indent=2)
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
@@ -418,7 +389,6 @@ def main() -> None:
 
     out = stages.output_dir(cfg)
     dump_config(cfg, out / "config.yaml")
-    _write_provenance(cfg, candidates, out)
     for collection, frame in candidate_frames.items():
         frame.to_parquet(out / f"candidate_preferences_{collection}.parquet", index=False)
 
@@ -429,6 +399,35 @@ def main() -> None:
         raise SystemExit(f"--only-model {args.only_model!r} matches no configured ranker")
     for ranker_cfg in rankers:
         _run_model(source_cfgs, ranker_cfg, candidate_frames, candidates, out, cfg.seed)
+    write_run_manifest(
+        out / "run_manifest.json",
+        cfg,
+        config_source=args.config,
+        source_paths=[
+            Path(__file__),
+            paths.PROJECT_ROOT / "src" / "axiomrank" / "axioms",
+            paths.PROJECT_ROOT / "src" / "axiomrank" / "analysis",
+            paths.PROJECT_ROOT / "src" / "axiomrank" / "ranking",
+            paths.PROJECT_ROOT / "src" / "axiomrank" / "pipeline",
+        ],
+        input_paths=[
+            paths.PROJECT_ROOT / source for source in cfg.sources
+        ]
+        + [stages.processed_dir(source_cfg) for source_cfg in source_cfgs]
+        + [paths.PREFERENCES_DIR],
+        output_paths=[out],
+        extra={
+            "runner": "experiments/rq4_candidates/run.py",
+            "selected_models": [ranker.model or "mock" for ranker in rankers],
+            "source_configs": list(cfg.sources),
+            "candidate_columns": candidates,
+            "cache_policy": "development-config-guard-with-explicit-refresh",
+            "legacy_provenance_note": (
+                "provenance.json may describe an older retained run; run_manifest.json is "
+                "authoritative for runs made by this version"
+            ),
+        },
+    )
 
 
 if __name__ == "__main__":

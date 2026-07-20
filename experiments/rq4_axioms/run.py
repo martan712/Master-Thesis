@@ -9,6 +9,7 @@ after every pair prediction has been fitted.
 
 import argparse
 import json
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -17,6 +18,7 @@ from axiomrank import analysis, paths, ranking
 from axiomrank.analysis import PAIR_KEY
 from axiomrank.config import dump_config, load_config
 from axiomrank.pipeline import merged_cell_frame, stages
+from axiomrank.provenance import write_run_manifest
 
 DEGENERATE = {"TFC1@len0.2", "TFC1@len0.5", "TFC3", "TFC3@len0.2", "TFC3@len0.5"}
 RQ4_COLUMNS = {"VERB", "QCOV", "VERB@m0.2"}
@@ -392,6 +394,30 @@ def main() -> None:
     dump_config(cfg, out / "config.yaml")
     for ranker_cfg in rankers:
         _run_model(source_cfgs, ranker_cfg, out, cfg.seed)
+    write_run_manifest(
+        out / "run_manifest.json",
+        cfg,
+        config_source=args.config,
+        source_paths=[
+            Path(__file__),
+            paths.PROJECT_ROOT / "src" / "axiomrank" / "axioms",
+            paths.PROJECT_ROOT / "src" / "axiomrank" / "analysis",
+            paths.PROJECT_ROOT / "src" / "axiomrank" / "ranking",
+            paths.PROJECT_ROOT / "src" / "axiomrank" / "pipeline",
+        ],
+        input_paths=[
+            paths.PROJECT_ROOT / source for source in cfg.sources
+        ]
+        + [stages.processed_dir(source_cfg) for source_cfg in source_cfgs]
+        + [paths.PREFERENCES_DIR],
+        output_paths=[out],
+        extra={
+            "runner": "experiments/rq4_axioms/run.py",
+            "selected_models": [ranker.model or "mock" for ranker in rankers],
+            "source_configs": list(cfg.sources),
+            "cache_policy": "development-config-guard-with-explicit-refresh",
+        },
+    )
 
 
 if __name__ == "__main__":

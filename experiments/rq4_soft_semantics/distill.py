@@ -27,6 +27,7 @@ from tqdm import tqdm
 from axiomrank import paths, ranking
 from axiomrank.config import dump_config, load_config
 from axiomrank.pipeline import stages
+from axiomrank.provenance import write_run_manifest
 from axiomrank.ranking.soft_semantics import (
     DEFAULT_MRC_MODEL,
     DEFAULT_NLI_MODEL,
@@ -317,6 +318,37 @@ def main() -> None:
         }
     output = out_dir / "distill_report.json"
     output.write_text(json.dumps(reports, indent=2) + "\n")
+    input_paths = (
+        [paths.PROJECT_ROOT / source for source in cfg.sources]
+        + [stages.processed_dir(source_cfg) for source_cfg, _ in pools.values()]
+        + [
+            paths.DATA_DIR / "adequacy" / "models__qwen3.6-35B-A3B-AWQ",
+            paths.DATA_DIR / "soft_semantics_features" / FEATURE_VERSION,
+        ]
+    )
+    if args.transfer_config:
+        input_paths.append(paths.PROJECT_ROOT / args.transfer_config)
+        input_paths.append(stages.processed_dir(target_cfg))
+    write_run_manifest(
+        out_dir / "run_manifest.json",
+        cfg,
+        config_source=args.config,
+        source_paths=[Path(__file__), paths.PROJECT_ROOT / "src" / "axiomrank"],
+        input_paths=input_paths,
+        output_paths=[out_dir],
+        extra={
+            "runner": "experiments/rq4_soft_semantics/distill.py",
+            "depth": args.depth,
+            "nli_model": args.nli_model,
+            "mrc_model": args.mrc_model,
+            "ridge_alpha": RIDGE_ALPHA,
+            "threads": args.threads,
+            "refresh_features": args.refresh_features,
+            "transfer_config": args.transfer_config,
+            "transfer_depth": args.transfer_depth,
+            "cache_policy": "development-config-guard-with-explicit-refresh",
+        },
+    )
     for collection, report in reports["collections"].items():
         for model, values in report.items():
             ndcg = values["nDCG@10"]
