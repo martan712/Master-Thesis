@@ -172,8 +172,10 @@ and CBP with explicit query and pair preconditions. `experiments/rq4_candidates/
 candidate preferences fresh from cached DL19/DL20 pool/pair text, joins cached LLM labels with
 `allow_new=False`, and fits classical, four add-one and all-D0 arms on a shared query-disjoint fold
 map. It does not append to or invalidate the Phase 1/2 axiom caches. Qrels are read only after all
-OOF pair predictions exist. The runner also writes `provenance.json` (variant alias, `answering.py`
-source digest, git revision) so a code change under an unchanged version alias is detectable.
+OOF pair predictions exist. New runs write the shared `run_manifest.json`: exact config, Git and
+dirty-diff identity, lock/dependency versions, local source hashes, consumed cache/preference
+artifacts and output checksums. The retained `provenance.json` belongs to the historical D0-v2 run;
+the common run manifest is authoritative for runs made by the hardened runner.
 
 D0-v0 revealed that count evidence was not bound to the requested noun and that CBP could act on
 bare ambiguous person queries; D0-v1 corrected both. An independent review then found two

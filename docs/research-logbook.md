@@ -392,3 +392,26 @@ reading held-out qrels, collected Qwen adequacy for their 300 top-10 documents, 
 and evaluated the other 270 queries. It improves nDCG@10 0.677 → 0.695, Δ +0.018 [+0.004, +0.032],
 and AP 0.625 → 0.650, Δ +0.025 [+0.006, +0.044]. This establishes domain adaptation as a viable
 exploratory path, not a confirmation result. NFCorpus remains locked and untouched.
+
+## 16. Development-framework safety pass
+
+On 2026-07-20 the short pre-freeze hardening plan was implemented without reading or unlocking the
+NFCorpus confirmation collection. The live preference store and all current results were copied to
+`data/backups/development-artifacts-20260720T131924Z`; its 1,184-file, 20,834,738-byte SHA-256
+inventory verified, and a preference Parquet part restored to temporary storage and read
+successfully. `data/backups/LATEST.json` records the manifest checksum and recovery result. This is
+a second local copy; an off-device archive is still required for disaster recovery.
+
+The supported `ir_axioms` dependency is now explicitly fixed at 1.1.2 because the relaxed TF-LNC /
+M-TDC ports and deterministic PROX1 correction are reviewed against that implementation. Active
+RQ4 axiom, candidate, adequacy, qualitative and soft-semantics runners now write shared run
+manifests with config, Git/dirty diff, lock/dependencies, source files, cache/preference inputs and
+output checksums. Dirty runs are
+labelled exploratory. The temporary development cache policy is explicit: configuration
+fingerprints do not prove content ancestry, so result-affecting code/dependency/data changes require
+a complete affected-chain refresh or a new immutable cache namespace.
+
+Two regression guards were added before further candidate work: duplicate normalized axiom columns
+fail at config load/direct computation, and the statistics-free classical/local battery is checked
+for swap antisymmetry and identical fresh-process output under several Python hash seeds. These are
+development safeguards, not the later content-addressed cache or preference-store-v2 redesign.

@@ -76,7 +76,9 @@ submodules:
   importing those libraries. Override via `.env` (see `.env.example`) if needed.
 - **Experiments are config-driven and reproducible.** Each experiment reads a YAML from
   `configs/`, fixes its random seed, and writes only under `results/<experiment>/`
-  (via `axiomrank.paths.results_dir`). See `experiments/README.md` for the naming scheme.
+  (via `axiomrank.paths.results_dir`). Active RQ4 runners also write a checksum-rich
+  `run_manifest.json`; dirty-tree runs are development/exploratory only. See
+  `experiments/README.md` for the naming and cache-validity rules.
 - **Fidelity vs. effectiveness.** Every experiment declares in its config which of the
   two is its primary metric (research plan §4.1).
 - **Preference data format.** LLM verdicts are stored once, append-only, as Parquet in
