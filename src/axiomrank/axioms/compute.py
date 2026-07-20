@@ -4,7 +4,7 @@ import pandas as pd
 
 from axiomrank import paths
 from axiomrank.axioms.registry import build_axioms, coerce_spec
-from axiomrank.config import AxiomSpec
+from axiomrank.config import AxiomSpec, validate_axiom_specs
 from axiomrank.data.pairs import PAIR_COLUMNS  # noqa: F401  (documents the expected input)
 
 
@@ -26,7 +26,7 @@ def axiom_preferences(
     from ir_axioms.model import Document, Query
     from tqdm.auto import tqdm
 
-    specs = [coerce_spec(spec) for spec in specs]
+    specs = validate_axiom_specs([coerce_spec(spec) for spec in specs])
     axioms = build_axioms(specs, index_location=index_location)
     names = [spec.column for spec in specs]
 

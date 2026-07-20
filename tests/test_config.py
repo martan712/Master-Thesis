@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from axiomrank.config import AxiomsConfig, RankerConfig, load_config
 
 CONFIGS_DIR = Path(__file__).parent.parent / "configs"
@@ -29,6 +31,21 @@ def test_dict_axiom_entries_carry_alias_and_params():
     assert relaxed.params == {"precondition_margin": 0.2}
     assert cfg.names == ["TFC1", "TFC1@len0.2", "STMC1@wn"]
     assert [s.column for s in cfg.specs] == cfg.names  # no dashes in these aliases
+
+
+def test_duplicate_normalised_axiom_columns_fail_at_config_load(tmp_path):
+    path = tmp_path / "duplicate.yaml"
+    path.write_text(
+        """
+experiment: duplicate
+axioms:
+  lexical:
+    - TF-LNC
+    - {name: TFC1, alias: TF_LNC}
+"""
+    )
+    with pytest.raises(ValueError, match="Duplicate axiom output columns.*TF_LNC"):
+        load_config(path)
 
 
 def test_rankers_list_parses_and_all_rankers_falls_back(tmp_path):

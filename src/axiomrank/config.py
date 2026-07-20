@@ -84,11 +84,20 @@ class AxiomsConfig:
 
     @property
     def specs(self) -> list["AxiomSpec"]:
-        return [*self.lexical_specs, *self.semantic_specs]
+        return validate_axiom_specs([*self.lexical_specs, *self.semantic_specs])
 
     @property
     def names(self) -> list[str]:
         return [s.alias or s.name for s in self.specs]
+
+
+def validate_axiom_specs(specs: list[AxiomSpec]) -> list[AxiomSpec]:
+    """Reject output-column collisions after public-name normalisation."""
+    columns = [spec.column for spec in specs]
+    duplicates = sorted({column for column in columns if columns.count(column) > 1})
+    if duplicates:
+        raise ValueError(f"Duplicate axiom output columns: {duplicates}")
+    return specs
 
 
 @dataclass
@@ -142,7 +151,10 @@ def _build(cls: type, data: dict[str, Any]) -> Any:
 def load_config(path: str | Path) -> ExperimentConfig:
     with open(path) as f:
         raw = yaml.safe_load(f)
-    return _build(ExperimentConfig, raw)
+    cfg = _build(ExperimentConfig, raw)
+    # Force semantic axiom validation at config-load time, before any data or model access.
+    cfg.axioms.specs
+    return cfg
 
 
 def dump_config(cfg: ExperimentConfig, path: Path) -> None:
