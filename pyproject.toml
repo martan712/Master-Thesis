@@ -6,7 +6,9 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     # IR experimentation backbone (the pyterrier extra keeps python-terrier aligned)
-    "ir-axioms[pyterrier]>=1.1",
+    # Local relaxed axioms and the deterministic PROX1 correction are reviewed against 1.1.2.
+    # Upgrade only together with the cross-process/golden axiom compatibility tests.
+    "ir-axioms[pyterrier]==1.1.2",
     "ir-datasets>=0.5",
     # analysis and modelling
     "numpy",
